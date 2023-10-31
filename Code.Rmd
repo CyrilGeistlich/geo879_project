@@ -1,7 +1,7 @@
 ---
-title: "Code"
-author: "Cyril Geistlich"
-date: "2023-10-31"
+title: "GEO879 - Mobility Issues Project"
+author: "Cyril Geistlich, Annika Kunz, Fabienne Koenig"
+date: "2023-10-11"
 output: html_document
 ---
 
@@ -9,22 +9,361 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Load Libraries
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r libraries, warning = F}
+library("dplyr")
+library("sf")
+library("readr") 
+library("ggplot2")
+library("tmap")
+library("leaflet")
+library("spatstat") 
+library("raster")
+library("dbscan")
+library("phonTools")
+library("ellipse")
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+## Task 1
+## Read Data
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+# I use .gpkg, since it is delivererd in Lv95 and no further tranformation is needed. 
+accidents <- st_read( "data/RoadTrafficAccidentLocations.gpkg")
+zh_boundary <- st_read( "data/Zurich_city_boundary.gpkg")
+zh_districts <- st_read( "data/Zurich_city_districts.gpkg")
+```
+All layers are in CH1903+ / LV95. Therefore no further transformations are needed. 
+
+## Task 2
+
+```{r Tables}
+# a)
+accidents |> ggplot() +
+  geom_bar(aes(AccidentSeverityCategory)) +
+  xlab("Accident Severity Category") +
+  ggtitle("Number of Accidents by Severity")
+
+# b)
+accidents |> ggplot() +
+  geom_bar(aes(AccidentType)) +
+  xlab("Accident Category") +
+  ggtitle("Number of Accidents by Category")
+
+# c)
+
+p <- accidents |>
+  filter(AccidentInvolvingPedestrian == T &
+         AccidentInvolvingBicycle == F &
+         AccidentInvolvingMotorcycle == F)
+
+b <- accidents |>
+  filter(AccidentInvolvingPedestrian == F &
+         AccidentInvolvingBicycle == T &
+         AccidentInvolvingMotorcycle == F)
+
+m <- accidents |>
+  filter(AccidentInvolvingPedestrian == F &
+         AccidentInvolvingBicycle == F &
+         AccidentInvolvingMotorcycle == T)
+
+pb <- accidents |>
+  filter(AccidentInvolvingPedestrian == T &
+         AccidentInvolvingBicycle == T &
+         AccidentInvolvingMotorcycle == F)
+
+pm <- accidents |>
+  filter(AccidentInvolvingPedestrian == T &
+         AccidentInvolvingBicycle == F &
+         AccidentInvolvingMotorcycle == T)
+
+bm <- accidents |>
+  filter(AccidentInvolvingPedestrian == F &
+         AccidentInvolvingBicycle == T &
+         AccidentInvolvingMotorcycle == T)
+
+pbm <- accidents |>
+  filter(AccidentInvolvingPedestrian == T &
+         AccidentInvolvingBicycle == T &
+         AccidentInvolvingMotorcycle == T)
+
+
+counts_table <- data.frame(
+  Type = c("Pedestrian","Bicycle","Motorcycle","Pedestrian & Bicycle", "Pedestrian & Motorcycle", "Bicycle & Motorcycle", "Pedestrian & Bicycle & Motorcycle"),
+  Count = c(nrow(p),nrow(b),nrow(m),nrow(pb), nrow(pm), nrow(bm), nrow(pbm))
+)
+
+print(counts_table)
+
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Task 3
+
+```{r temporal evolution plot}
+
+temporal_plot <- accidents |>
+  group_by(AccidentYear) |>
+  summarise(Count = n()) |>
+  ggplot() +
+  geom_line(aes(x = AccidentYear, y = Count))
+
+temporal_plot_b <- b |>
+  group_by(AccidentYear) |>
+  summarise(Count = n()) |>
+  ggplot() +
+  geom_line(aes(x = AccidentYear, y = Count))
+
+combined_plot <- ggplot() +
+  geom_line(data = temporal_plot$data, aes(x = AccidentYear, y = Count, linetype = "All Accidents"), size = 1, color = "black") +
+  geom_line(data = temporal_plot_b$data, aes(x = AccidentYear, y = Count, linetype = "Bicycle Accidents"), size = 1, color = "red") +
+  geom_text(data = temporal_plot$data, aes(x = AccidentYear, y = Count, label = Count), vjust = -1, hjust = -0.5, size = 3, color = "black") +
+  geom_text(data = temporal_plot_b$data, aes(x = AccidentYear, y = Count, label = Count), vjust = -1, hjust = -0.5, size = 3, color = "red") +
+  xlab("Year") +
+  ylab("Number of Accidents") +
+  ggtitle("Accidents Over the Years") +
+  scale_x_continuous(breaks = unique(accidents$AccidentYear)) +
+  scale_linetype_manual(values = c("All Accidents" = "solid", "Bicycle Accidents" = "solid")) +
+  guides(linetype = guide_legend(override.aes = list(color = c("black", "red"))) )  +
+  scale_color_manual(values = c("All Accidents" = "black", "Bicycle Accidents" = "red")) +
+  labs(linetype = "Transport Mode Type")
+
+print(combined_plot)
+
+```
+
+## Task 4
+
+```{r Tmap Accident Severity}
+
+tmap_mode("view")
+
+basemap_imagery <-tm_basemap("Esri.WorldTopoMap") +
+  tm_basemap("Esri.WorldImagery") +
+  tm_basemap("Esri.WorldStreetMap") +
+  tm_basemap("Esri.WorldGrayCanvas")
+
+accident_map <- tm_shape(b) +
+  tm_dots(col = "AccidentSeverityCategory_en", palette = "Set1", size = 0.02) + 
+  tm_layout(
+    title = "Accident Severity Map of Zurich", 
+    title.position = c('left', 'top'), 
+    legend.frame = T
+  ) +
+  tm_shape(zh_boundary) +
+  tm_borders() +
+  tm_shape(zh_districts) +
+  tm_borders() +
+  basemap_imagery 
+
+accident_map
+
+```
+## Task 5
+# Clustering of Accidents
+
+Most accidents occur on or close to intersections. We have accumulations of accidents along larger streets. This might be the case because those streets might be cycled on more frequently and at a higher average velocity. 
+
+
+
+## Task 6
+
+
+```{r dbscan}
+
+sf_data <- b
+years <- c(2018, 2019, 2020, 2021)
+cluster_maps <- list()
+
+for (year in years) {
+  data_year <- sf_data[sf_data$AccidentYear == year, ]
+  coordinates_df <- st_coordinates(data_year)
+
+  dbscan_result <- dbscan(coordinates_df, eps = 125)
+
+  # move cluster 0 to own layer
+  data_year_cluster0 <- data_year[dbscan_result$cluster == 0, ]
+  data_year_cluster0$Cluster <- as.factor(dbscan_result$cluster[dbscan_result$cluster == 0])
+  
+  data_year <- data_year[dbscan_result$cluster != 0, ]
+  data_year$Cluster <- as.factor(dbscan_result$cluster[dbscan_result$cluster != 0])
+
+  cluster_map <- tm_shape(data_year) +
+    tm_dots(col = "Cluster", palette = "Set1", size = 0.01) +
+    tm_shape(data_year_cluster0) +
+    tm_dots(col = "Cluster", size = 0.01) +
+    tm_shape(zh_boundary) +
+    tm_borders() +
+    tm_shape(zh_districts) +
+    tm_borders() +
+    tm_layout(
+      title = paste("DBSCAN Clustering Map - Year", year),
+      title.position = c('left', 'top'),
+      legend.frame = TRUE
+    )
+
+  cluster_maps[[as.character(year)]] <- cluster_map
+
+  assign(paste0("b_", year), data_year)
+}
+
+for (year in years) {
+  print(cluster_maps[[as.character(year)]])
+}
+
+```
+
+## Task 7
+
+Cluster 0 was filtered out, since the data points in the cluster were spread out through the whole city. After removing the other smaller clusters become better visible in the maps. The clusters are along larger roads or at large intersection with a lot of traffic. This confirms the assumptions I made in task 5.
+
+limitations, other methods? 
+
+
+## Task 8
+Task 8: Given the clusters that you have extracted in Part 1 of the DC1 assignment:
+
+a. Define a set of criteria that a method should fulfill that can be used to delineate the given
+clusters by polygons. Use free text for these definitions, but try to be concise and precise. (Note:
+These criteria can also be used in the subsequent Discussion to evaluate whether they have been
+met.)
+
+We are dealing with small clusters, therefore the delineation method should be accurate and not overestimate the area significantly. 
+The retrieved clusters have varying shapes, therefore the method used should be able to handle differences is in size and shape.
+This is especially true for clusters along a road, which have almost no area. 
+
+
+b. Choose a polygon delineation method that you deem appropriate in light of the above criteria.
+Justify your choice.
+
+Using a method such as convex or concave hulls works fine for clusters around intersections, but is very weak at creating polygons along roads or accurate polygons for clusters with only a few points. Therefore a standard deviation ellipse can be applied. It can capture linear patterns better, since it shows some spread and orientation along the roads. Further, the ellipses are compact and provide a concise representation of the cluster, where the clusters are elongated. Further, it introduces variability and gives information about the distribution of the accidents in the clusters. 
+
+
+## Task 9
+From the years 2018 to 2021 for which you computed clusters in Task 6, choose at least
+two years and apply your polygon delineation method of choice to each of these two years separately.
+Compute the Jaccard Index (Intersection over Union) for pair(s) of selected years and present and
+discuss the results.
+
+
+
+```{r SDE, include = F}
+
+# Create a list to store ellipses
+ellipses <- data.frame()
+clusters <- unique(b_2018$Cluster)
+ellipses_list <- list()
+
+# 2018
+  # Create and add ellipses for each cluster
+  for (cluster in clusters) {
+    sde_cluster <- b_2018[b_2018$Cluster == cluster, ]
+    coords <- as.matrix(st_coordinates(st_as_sf(sde_cluster)))
+  
+    # Create standard deviation ellipse
+    plot.new()
+    ellipse_data <- as.data.frame(sdellipse(coords))
+    
+    # Create the polygon object
+    polygon <- ellipse_data |>
+    st_as_sf(coords = c("V1", "V2"), crs = 2056) |>
+    summarise((geometry = st_combine(geometry))) |>
+    st_cast("POLYGON")
+  
+    polygon$Cluster <- cluster
+  
+    # Add the polygon to the list
+    ellipses_list[[cluster]] <- polygon
+    ellipses_2018 <- do.call(rbind, ellipses_list)
+}
+
+# 2021
+clusters <- unique(b_2021$Cluster)
+  # Create and add ellipses for each cluster
+  for (cluster in clusters) {
+    sde_cluster <- b_2021[b_2021$Cluster == cluster, ]
+    coords <- as.matrix(st_coordinates(st_as_sf(sde_cluster)))
+  
+    # Create standard deviation ellipse
+    plot.new()
+    ellipse_data <- as.data.frame(sdellipse(coords))
+  
+    # Create the polygon object
+    polygon <- ellipse_data |>
+    st_as_sf(coords = c("V1", "V2"), crs = 2056) |>
+    summarise((geometry = st_combine(geometry))) |>
+    st_cast("POLYGON")
+  
+    polygon$Cluster <- cluster
+  
+    # Add the polygon to the list
+    ellipses_list[[cluster]] <- polygon
+    ellipses_2021 <- do.call(rbind, ellipses_list)
+}
+
+```
+
+
+```{r ellipse map}
+ellipse_map_18 <- tm_shape(zh_boundary) +
+    tm_borders() +
+    tm_shape(zh_districts) +
+    tm_borders() +
+    tm_shape(ellipses_2018) +
+    tm_polygons(alpha = 0.5, palette = "Set1") +
+    tm_shape(b_2018) +
+    tm_dots(col = "Cluster", palette = "Set1", size = 0.01) +
+    tmap_options(check.and.fix = TRUE) +
+    tm_layout(
+      title = paste("DBSCAN Clustering Map - Year", 2018),
+      title.position = c('left', 'top'),
+      legend.frame = TRUE
+  )
+
+ellipse_map_21 <- tm_shape(zh_boundary) +
+    tm_borders() +
+    tm_shape(zh_districts) +
+    tm_borders() +
+    tm_shape(ellipses_2021) +
+    tm_polygons(alpha = 0.5, palette = "Set1") +
+    tm_shape(b_2021) +
+    tm_dots(col = "Cluster", palette = "Set1", size = 0.01) +
+    tmap_options(check.and.fix = TRUE) +
+    tm_layout(
+      title = paste("DBSCAN Clustering Map - Year", 2021),
+      title.position = c('left', 'top'),
+      legend.frame = TRUE
+  )
+ellipse_map_18
+ellipse_map_21
+```
+
+```{r Jaccard Index}
+ellipses
+```
+
+
+## Task 10
+Overall, what did you find with the above steps? What do these steps tell you about the
+situation of bicycle accidents in Zurich? How useful are the methods used so far in analysing the given
+data? Any other points of note
+
+
+
+
+
+```{r KDE}
+
+b_kde <- as.ppp(b)
+
+# Kernel density estimation
+density_map <- density(b_kde, sigma = 0.1, kernel = "gaussian")
+
+plot(density_map, main = "Kernel Density Map of Bicycle Accidents in Zurich")
+
+```
+
+
