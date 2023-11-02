@@ -366,4 +366,79 @@ plot(density_map, main = "Kernel Density Map of Bicycle Accidents in Zurich")
 
 ```
 
+---
+title: "Code"
+author: "Groupe 11"
+date: "2023-10-31"
+output: html_document
+---
+
+Setup packages 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+# Install/load packages
+## Default repository
+local({r <- getOption("repos")
+       r["CRAN"] <- "http://cran.r-project.org" 
+       options(repos = r)
+})
+
+check_pkg <- function(x)
+  {
+    if (!require(x, character.only = TRUE))
+    {
+      install.packages(x, dep = TRUE)
+        if(!require(x, character.only = TRUE)) stop("Package not found")
+    }
+}
+
+check_pkg("sf")
+check_pkg("httr")
+check_pkg("ggplot2")
+check_pkg("tidyverse")
+check_pkg("leaflet")
+check_pkg("dplyr")
+check_pkg("XML")
+check_pkg("mapview")
+
+
+# Projection strings for the Swiss LV03 & LV95 CRS and WGS84 CRS, respectively
+crs_lv03  <- 21781
+crs_lv95  <- 2056
+crs_wgs84 <- 4326
+```
+
+
+```{r load GPX data}
+gpx_parsed <- htmlTreeParse(file = "data/GEO879 Empatica Wristband Route.gpx", useInternalNodes = TRUE)
+```
+
+Extract and store them in a more readable structure:
+```{r extract info to dataframe}
+coords <- xpathSApply(doc = gpx_parsed, path = "//trkpt", fun = xmlAttrs)
+elevation <- xpathSApply(doc = gpx_parsed, path = "//trkpt/ele", fun = xmlValue)
+
+track <- data.frame(
+  lat = as.numeric(coords["lat", ]),
+  lon = as.numeric(coords["lon", ]),
+  elevation = as.numeric(elevation)
+)
+
+# Add index to df
+track$index <- 1:nrow(track)
+```
+
+```{r convert to sf object and build trajectory}
+track_sf <- st_as_sf(x = track, coords = c("lon","lat"), crs = 4326) %>% arrange(index)
+mapview(track_sf)
+
+# Creating trajectory by combining the coordinate points into multipoint feature
+traj <- st_union(track_sf$geometry)
+traj_sf <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
+# mapview(traj_sf) # NOT WORKING PROPERLY > ORDER IS NOT CORRECT
+```
+
+
 
