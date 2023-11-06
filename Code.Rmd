@@ -419,8 +419,10 @@ Extract and store them in a more readable structure:
 ```{r extract info to dataframe}
 coords <- xpathSApply(doc = gpx_parsed, path = "//trkpt", fun = xmlAttrs)
 elevation <- xpathSApply(doc = gpx_parsed, path = "//trkpt/ele", fun = xmlValue)
+ts_chr <- xpathSApply(gpx_parsed, path = "//trkpt/time", xmlValue)
 
 track <- data.frame(
+  ts_POSIXct = ymd_hms(ts_chr, tz = "UTC"),
   lat = as.numeric(coords["lat", ]),
   lon = as.numeric(coords["lon", ]),
   elevation = as.numeric(elevation)
