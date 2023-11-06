@@ -402,6 +402,7 @@ check_pkg("leaflet")
 check_pkg("dplyr")
 check_pkg("XML")
 check_pkg("mapview")
+check_pkg("lubridate")
 
 
 # Projection strings for the Swiss LV03 & LV95 CRS and WGS84 CRS, respectively
@@ -412,7 +413,7 @@ crs_wgs84 <- 4326
 
 
 ```{r load GPX data}
-gpx_parsed <- htmlTreeParse(file = "data/GEO879 Empatica Wristband Route.gpx", useInternalNodes = TRUE)
+gpx_parsed <- htmlTreeParse(file = "data/Geo879_route_Annika.gpx", useInternalNodes = TRUE)
 ```
 
 Extract and store them in a more readable structure:
