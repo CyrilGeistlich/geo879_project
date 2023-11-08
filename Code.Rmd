@@ -12,13 +12,48 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load Libraries
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+# Install/load packages
+## Default repository
+local({r <- getOption("repos")
+       r["CRAN"] <- "http://cran.r-project.org" 
+       options(repos = r)
+})
+
+check_pkg <- function(x)
+  {
+    if (!require(x, character.only = TRUE))
+    {
+      install.packages(x, dep = TRUE)
+        if(!require(x, character.only = TRUE)) stop("Package not found")
+    }
+}
+
+check_pkg("sf")
+check_pkg("httr")
+check_pkg("ggplot2")
+check_pkg("tidyverse")
+check_pkg("leaflet")
+check_pkg("dplyr")
+check_pkg("XML")
+check_pkg("mapview")
+check_pkg("lubridate")
+
+
+# Projection strings for the Swiss LV03 & LV95 CRS and WGS84 CRS, respectively
+crs_lv03  <- 21781
+crs_lv95  <- 2056
+crs_wgs84 <- 4326
+```
+
+
 ```{r libraries, warning = F}
 library("dplyr")
-library("sf")
 library("readr") 
-library("ggplot2")
 library("tmap")
-library("leaflet")
 library("spatstat") 
 library("raster")
 library("dbscan")
@@ -366,50 +401,7 @@ plot(density_map, main = "Kernel Density Map of Bicycle Accidents in Zurich")
 
 ```
 
----
-title: "Code"
-author: "Groupe 11"
-date: "2023-10-31"
-output: html_document
----
 
-Setup packages 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
-
-# Install/load packages
-## Default repository
-local({r <- getOption("repos")
-       r["CRAN"] <- "http://cran.r-project.org" 
-       options(repos = r)
-})
-
-check_pkg <- function(x)
-  {
-    if (!require(x, character.only = TRUE))
-    {
-      install.packages(x, dep = TRUE)
-        if(!require(x, character.only = TRUE)) stop("Package not found")
-    }
-}
-
-check_pkg("sf")
-check_pkg("httr")
-check_pkg("ggplot2")
-check_pkg("tidyverse")
-check_pkg("leaflet")
-check_pkg("dplyr")
-check_pkg("XML")
-check_pkg("mapview")
-check_pkg("lubridate")
-
-
-# Projection strings for the Swiss LV03 & LV95 CRS and WGS84 CRS, respectively
-crs_lv03  <- 21781
-crs_lv95  <- 2056
-crs_wgs84 <- 4326
-```
 
 
 ```{r load GPX data}
