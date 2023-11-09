@@ -9,10 +9,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 # Load Libraries
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning = F}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 
@@ -41,8 +40,18 @@ check_pkg("dplyr")
 check_pkg("XML")
 check_pkg("mapview")
 check_pkg("lubridate")
+check_pkg("dplyr")
+check_pkg("readr") 
+check_pkg("tmap")
+check_pkg("spatstat") 
+check_pkg("dbscan")
+check_pkg("ellipse")
+check_pkg("phonTools")
 
 
+```
+
+```{r Projections}
 # Projection strings for the Swiss LV03 & LV95 CRS and WGS84 CRS, respectively
 crs_lv03  <- 21781
 crs_lv95  <- 2056
@@ -50,19 +59,6 @@ crs_wgs84 <- 4326
 ```
 
 
-```{r libraries, warning = F}
-library("dplyr")
-library("readr") 
-library("tmap")
-library("spatstat") 
-library("raster")
-library("dbscan")
-library("phonTools")
-library("ellipse")
-```
-
-
-## Task 1
 ## Read Data
 
 ```{r}
@@ -73,7 +69,7 @@ zh_districts <- st_read( "data/Zurich_city_districts.gpkg")
 ```
 All layers are in CH1903+ / LV95. Therefore no further transformations are needed. 
 
-## Task 2
+## Data Preview
 
 ```{r Tables}
 # a)
@@ -136,7 +132,7 @@ print(counts_table)
 
 ```
 
-## Task 3
+## Temporal Evolution
 
 ```{r temporal evolution plot}
 
@@ -170,7 +166,7 @@ print(combined_plot)
 
 ```
 
-## Task 4
+## Accident Severity
 
 ```{r Tmap Accident Severity}
 
@@ -197,15 +193,10 @@ accident_map <- tm_shape(b) +
 accident_map
 
 ```
-## Task 5
+
 # Clustering of Accidents
 
 Most accidents occur on or close to intersections. We have accumulations of accidents along larger streets. This might be the case because those streets might be cycled on more frequently and at a higher average velocity. 
-
-
-
-## Task 6
-
 
 ```{r dbscan}
 
@@ -251,39 +242,8 @@ for (year in years) {
 
 ```
 
-## Task 7
 
-Cluster 0 was filtered out, since the data points in the cluster were spread out through the whole city. After removing the other smaller clusters become better visible in the maps. The clusters are along larger roads or at large intersection with a lot of traffic. This confirms the assumptions I made in task 5.
-
-limitations, other methods? 
-
-
-## Task 8
-Task 8: Given the clusters that you have extracted in Part 1 of the DC1 assignment:
-
-a. Define a set of criteria that a method should fulfill that can be used to delineate the given
-clusters by polygons. Use free text for these definitions, but try to be concise and precise. (Note:
-These criteria can also be used in the subsequent Discussion to evaluate whether they have been
-met.)
-
-We are dealing with small clusters, therefore the delineation method should be accurate and not overestimate the area significantly. 
-The retrieved clusters have varying shapes, therefore the method used should be able to handle differences is in size and shape.
-This is especially true for clusters along a road, which have almost no area. 
-
-
-b. Choose a polygon delineation method that you deem appropriate in light of the above criteria.
-Justify your choice.
-
-Using a method such as convex or concave hulls works fine for clusters around intersections, but is very weak at creating polygons along roads or accurate polygons for clusters with only a few points. Therefore a standard deviation ellipse can be applied. It can capture linear patterns better, since it shows some spread and orientation along the roads. Further, the ellipses are compact and provide a concise representation of the cluster, where the clusters are elongated. Further, it introduces variability and gives information about the distribution of the accidents in the clusters. 
-
-
-## Task 9
-From the years 2018 to 2021 for which you computed clusters in Task 6, choose at least
-two years and apply your polygon delineation method of choice to each of these two years separately.
-Compute the Jaccard Index (Intersection over Union) for pair(s) of selected years and present and
-discuss the results.
-
-
+Cluster 0 was filtered out, since the data points in the cluster were spread out through the whole city. After removing the other smaller clusters become better visible in the maps. The clusters are along larger roads or at large intersection with a lot of traffic.
 
 ```{r SDE, include = F}
 
@@ -376,43 +336,22 @@ ellipse_map_18
 ellipse_map_21
 ```
 
-```{r Jaccard Index}
-ellipses
-```
 
-
-## Task 10
-Overall, what did you find with the above steps? What do these steps tell you about the
-situation of bicycle accidents in Zurich? How useful are the methods used so far in analysing the given
-data? Any other points of note
-
-
-
-
-
-```{r KDE}
-
-b_kde <- as.ppp(b)
-
-# Kernel density estimation
-density_map <- density(b_kde, sigma = 0.1, kernel = "gaussian")
-
-plot(density_map, main = "Kernel Density Map of Bicycle Accidents in Zurich")
-
-```
-
-
+## Track Data
 
 
 ```{r load GPX data}
-gpx_parsed <- htmlTreeParse(file = "data/Geo879_route_Annika.gpx", useInternalNodes = TRUE)
+gpx_parsed_A <- htmlTreeParse(file = "data/Geo879_route_Annika.gpx", useInternalNodes = TRUE)
+gpx_parsed_F <- htmlTreeParse(file = "data/Geo879_route_Fabienne.gpx", useInternalNodes = TRUE)
+gpx_parsed_C <- htmlTreeParse(file = "data/Geo879_route_Cyril.gpx", useInternalNodes = TRUE)
+
 ```
 
 Extract and store them in a more readable structure:
 ```{r extract info to dataframe}
-coords <- xpathSApply(doc = gpx_parsed, path = "//trkpt", fun = xmlAttrs)
-elevation <- xpathSApply(doc = gpx_parsed, path = "//trkpt/ele", fun = xmlValue)
-ts_chr <- xpathSApply(gpx_parsed, path = "//trkpt/time", xmlValue)
+coords <- xpathSApply(doc = gpx_parsed_A, path = "//trkpt", fun = xmlAttrs)
+elevation <- xpathSApply(doc = gpx_parsed_A, path = "//trkpt/ele", fun = xmlValue)
+ts_chr <- xpathSApply(gpx_parsed_A, path = "//trkpt/time", xmlValue)
 
 track <- data.frame(
   ts_POSIXct = ymd_hms(ts_chr, tz = "UTC"),
@@ -435,5 +374,13 @@ traj_sf <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
 # mapview(traj_sf) # NOT WORKING PROPERLY > ORDER IS NOT CORRECT
 ```
 
+## Read Empatica Data
+
+# EDA - Electrodermal Activity (Unit: microsiemens)
+
+```{r}
+EDA_A <- read_csv("data/E4_data_Annika/EDA.csv")
+temp_A <- read_csv("data/E4_data_Annika/tags.csv")
+```
 
 
