@@ -378,7 +378,10 @@ traj_sf <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
 
 ```{r}
 EDA_A <- read_csv("data/E4_data_Annika/EDA.csv")
+EDA_F <- read_csv("data/E4_data_Fabienne/EDA.csv")
 temp_A <- read_csv("data/E4_data_Annika/tags.csv")
+
+
 ```
 
 # Following the tutorial to parse the E4 data https://rpubs.com/OliverSW/eda-analysis-tutorial
@@ -488,7 +491,12 @@ EDA_F
 ```
 
 ```{r visualizing EDA values}
-plt <- qplot(data=EDA_A,x = Timestamp, y=EDA,geom="line",col="Raw") #+ geom_line(aes(y=EDA.Filtered,col="Filtered"))
-ggplotly(plt,width = 900,height=450)
+plt_A <- qplot(data=EDA_A,x = Timestamp, y=EDA,geom="line",col="Annika") 
+ggplotly(plt_A,width = 900,height=450)
+```
+
+```{r}
+plt_F <- qplot(data=EDA_F,x = Timestamp, y=EDA,geom="line",col="Fabienne") 
+ggplotly(plt_F,width = 900,height=450)
 ```
 
