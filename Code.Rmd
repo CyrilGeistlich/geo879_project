@@ -5,10 +5,6 @@ date: "2023-10-11"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 # Load Libraries
 
 ```{r setup, include=FALSE, warning = F}
@@ -34,6 +30,7 @@ check_pkg <- function(x)
 check_pkg("sf")
 check_pkg("httr")
 check_pkg("ggplot2")
+check_pkg("plotly")
 check_pkg("tidyverse")
 check_pkg("leaflet")
 check_pkg("dplyr")
@@ -47,7 +44,8 @@ check_pkg("spatstat")
 check_pkg("dbscan")
 check_pkg("ellipse")
 check_pkg("phonTools")
-
+check_pkg("devtools")
+check_pkg("stringr")
 
 ```
 
@@ -374,7 +372,7 @@ traj_sf <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
 # mapview(traj_sf) # NOT WORKING PROPERLY > ORDER IS NOT CORRECT
 ```
 
-## Read Empatica Data
+## Read Empatica 4 Data
 
 # EDA - Electrodermal Activity (Unit: microsiemens)
 
@@ -383,4 +381,114 @@ EDA_A <- read_csv("data/E4_data_Annika/EDA.csv")
 temp_A <- read_csv("data/E4_data_Annika/tags.csv")
 ```
 
+# Following the tutorial to parse the E4 data https://rpubs.com/OliverSW/eda-analysis-tutorial
+# Adding timestamp info
+
+```{r write functions to parse E4 data and add timestamp}
+
+read.empatica.eda <- function(file){
+  raw <- read.csv(file,header = F)
+  start_s <- raw$V1[1]
+  sample_rate <- as.numeric(raw$V1[2])
+  data <- data.frame(Timestamp=NA, EDA=raw$V1[3:length(raw$V1)])
+  start <- as.POSIXct(start_s, origin = "1970-01-01")
+  dt <- as.difftime(as.character(1.0/sample_rate),format = "%OS")
+  timestamps <- seq(from = start, by=dt , along.with = data$EDA) 
+  data$Timestamp <- timestamps
+  data
+}
+
+read.empatica.acc <- function(file){
+  raw <- read.csv(file,header = F)
+  start_s <- raw$V1[1]
+  sample_rate <- as.numeric(raw$V1[2])
+  data <- data.frame(X=raw$V1[3:length(raw$V1)]/64.0,Y=raw$V2[3:length(raw$V2)]/64.0,Z=raw$V3[3:length(raw$V3)]/64.0)
+  start <- as.POSIXct(x = start_s, origin = "1970-01-01")
+  dt <- as.difftime(as.character(1.0/sample_rate),format = "%OS")
+  timestamps <- seq(from = start, by=dt , along.with = data$X) 
+  data$Timestamp <- timestamps
+  data
+}
+
+read.empatica.bvp <- function(file){
+  raw <- read.csv(file,header = F)
+  start_s <- raw$V1[1]
+  sample_rate <- as.numeric(raw$V1[2])
+  data <- data.frame(BVP=raw$V1[3:length(raw$V1)])
+  start <- as.POSIXct(x = start_s, origin = "1970-01-01")
+  dt <- as.difftime(as.character(1.0/sample_rate),format = "%OS")
+  timestamps <- seq(from = start, by=dt , along.with = data$BVP) 
+  data$Timestamp <- timestamps
+  data
+}
+
+read.empatica.hr <- function(file){
+  raw <- read.csv(file,header = F)
+  start_s <- raw$V1[1]
+  start <- as.POSIXct(x = start_s,origin = "1970-01-01")
+  dt <- as.difftime(seq_along(raw$V1[2:length(raw$V1)]),units = "secs")
+  timestamps <- start+dt
+  HR <- as.numeric(raw$V1[2:length(raw$V1)])
+  data <- data.frame(Timestamp=timestamps, HR=HR)
+  data
+}
+
+read.empatica.ibi <- function(file){
+  raw <- read.csv(file,header = F)
+  start_s <- raw$V1[1]
+  start <- as.POSIXct(x = start_s,origin = "1970-01-01")
+  dt <- as.difftime(raw$V1[2:length(raw$V1)],units = "secs")
+  timestamps <- start+dt
+  ibi <- as.double(as.character(raw$V2[2:length(raw$V2)]) )
+  data <- data.frame(Timestamp=timestamps, IBI=ibi)
+  data
+}
+
+read.empatica.temp <- function(file) {
+  raw <- read.csv(file,header = F)
+  start_s <- raw$V1[1]
+  sample_rate <- as.numeric(raw$V1[2])
+  temperatureF <- (9.0/5.0)*(raw$V1[3:length(raw$V1)] + 32.0)
+  data <- data.frame(TEMP=temperatureF)
+  start <- as.POSIXct(x = start_s, origin = "1970-01-01")
+  dt <- as.difftime(as.character(1.0/sample_rate),format = "%OS")
+  timestamps <- seq(from = start, by=dt , along.with = data$TEMP) 
+  data$Timestamp <- timestamps
+  data
+}
+
+read.empatica <- function(path) {
+  FIELDS <- c("Z","Y","X","Battery","Temperature","EDA")
+  FILES <- c("ACC.csv","BVP.csv","EDA.csv","TEMP.csv","IBI.csv")
+  #First lets read the file header info
+  acc <- read.empatica.acc(file.path(path,"ACC.csv"))
+  bvp <- read.empatica.bvp(file.path(path,"BVP.csv"))
+  ibi <- read.empatica.ibi(file.path(path,"IBI.csv"))
+  temp <- read.empatica.temp(file.path(path,"TEMP.csv"))
+  eda <- read.empatica.eda(file.path(path,"EDA.csv"))
+  
+  data <- list(ACC=acc,BVP=bvp,EDA=eda,TEMP=temp,IBI=ibi)
+  attr(data,"class") <- "eda"
+  return(data)
+}
+```
+
+# Read EDA data
+
+```{r read E4 data}
+# Data Annika 
+e4Data_A <- read.empatica("data/E4_data_Annika/")
+EDA_A <- e4Data_A$EDA
+EDA_A
+
+# Data Fabi
+e4Data_F <- read.empatica("data/E4_data_Fabienne/")
+EDA_F <- e4Data_F$EDA
+EDA_F
+```
+
+```{r visualizing EDA values}
+plt <- qplot(data=EDA_A,x = Timestamp, y=EDA,geom="line",col="Raw") #+ geom_line(aes(y=EDA.Filtered,col="Filtered"))
+ggplotly(plt,width = 900,height=450)
+```
 
