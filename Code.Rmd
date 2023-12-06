@@ -523,3 +523,49 @@ plt_A <- qplot(data=EDA_A_smoothed,x = Timestamp, y=GSR_smoothed,geom="line",col
 ggplotly(plt_A,width = 900,height=450)
 ```
 
+
+
+```{r}
+# Assuming 'EDA_A_filtered' is a data frame with columns 'Timestamp' and 'EDA'
+
+
+window_size <- 32  # Adjust the window size as needed
+
+# https://tesi.univpm.it/retrieve/7fd49ab6-6325-406a-867d-68c75c1d2375/Thesis%20-%20Anna%20Brocanelli.pdf -> Window size according to page 30.
+
+# Calculate the rolling mean using a window
+EDA_A_smoothed$tonic_values <- rollmean(EDA_A_smoothed$EDA, k = window_size, align = "center", fill = NA)
+
+# Plotting the original EDA measurements and the smoothed trend
+plot(EDA_A_filtered$Timestamp, EDA_A_smoothed$EDA, type = 'l', col = 'blue', xlab = 'Timestamp', ylab = 'EDA Measurement') +
+lines(EDA_A_filtered$Timestamp, EDA_A_smoothed$tonic_values, col = 'red', lwd = 2)
+
+```
+
+```{r}
+# Compute Phasic Values
+EDA_A_smoothed$phasic_values <- EDA_A_smoothed$GSR_smoothed - EDA_A_smoothed$tonic_values
+
+plt_A_phasic <- qplot(data=EDA_A_smoothed,x = Timestamp, y=phasic_values,geom="line",col="Annika") 
+ggplotly(plt_A_phasic,width = 900,height=450)
+```
+
+```{r}
+# Extract peaks and timestamp
+peaksize <- 0.25
+
+
+# Find peaks exceeding the threshold
+peak_positions <- which(EDA_A_filtered$EDA > peaksize)
+peak_timestamps <- EDA_A_filtered$Timestamp[peak_positions]
+
+# Display the positions and timestamps of the peaks
+peak_data <- data.frame(Position = peak_positions, Timestamp = peak_timestamps)
+print(peak_data)
+
+```
+
+```{r}
+# Next: Find positions in Track Data and identify locations. 
+```
+
