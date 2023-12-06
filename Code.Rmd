@@ -552,12 +552,12 @@ ggplotly(plt_A_phasic,width = 900,height=450)
 
 ```{r}
 # Extract peaks and timestamp
-peaksize <- 0.25
+peaksize <- 0.01
 
 
 # Find peaks exceeding the threshold
-peak_positions <- which(EDA_A_filtered$EDA > peaksize)
-peak_timestamps <- EDA_A_filtered$Timestamp[peak_positions]
+peak_positions <- which(EDA_A_smoothed$phasic_values > peaksize)
+peak_timestamps <- EDA_A_smoothed$Timestamp[peak_positions]
 
 # Display the positions and timestamps of the peaks
 peak_data <- data.frame(Position = peak_positions, Timestamp = peak_timestamps)
