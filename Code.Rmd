@@ -554,7 +554,6 @@ ggplotly(plt_A_phasic,width = 900,height=450)
 # Extract peaks and timestamp
 peaksize <- 0.01
 
-
 # Find peaks exceeding the threshold
 peak_positions <- which(EDA_A_smoothed$phasic_values > peaksize)
 peak_timestamps <- EDA_A_smoothed$Timestamp[peak_positions]
@@ -567,5 +566,58 @@ print(peak_data)
 
 ```{r}
 # Next: Find positions in Track Data and identify locations. 
+
+# Add one hour -> time difference
+# track_sf <- track_sf |> 
+#   mutate(ts_POSIXct = ts_POSIXct + hours(1))
+
+peak_data$Timestamp <- as.POSIXct(peak_data$Timestamp)
+track_sf$ts_POSIXct <- as.POSIXct(track_sf$ts_POSIXct)
+
+expanded_track <- track %>%
+  complete(ts_POSIXct = seq(min(ts_POSIXct), max(ts_POSIXct), by = "1 sec")) |>
+  fill(elevation, .direction = "down") |>
+  fill(lat, .direction = "downup") |>
+  fill(lon, .direction = "downup")
+
+
+
+# Round timestamps to the nearest second to handle minor differences
+peak_data$Timestamp <- round(peak_data$Timestamp, units = "secs")
+track$ts_POSIXct <- round(track$ts_POSIXct, units = "secs")
+
+
+peaks_merged <- left_join(peak_data, expanded_track, by = c("Timestamp" = "ts_POSIXct"))
+
+full_merged<- left_join(EDA_A_smoothed, expanded_track, by = c("Timestamp" = "ts_POSIXct")) |>
+  fill(elevation, .direction = "down") |>
+  fill(lat, .direction = "downup") |>
+  fill(lon, .direction = "downup")
+
 ```
+
+```{r}
+full_merged_sf <- st_as_sf(x = full_merged, coords = c("lon","lat"), crs = 4326)
+
+library(ggplot2)
+
+# Assuming 'zh_districts' and 'full_merged_sf' contain necessary spatial and phasic_values columns
+
+# Create a plot with two spatial layers and color mapping for 'phasic_values'
+ggplot() +
+  geom_sf(data = full_merged_sf, aes(color = phasic_values)) +
+  scale_color_gradient(low = "blue", high = "red")  # Adjust colors as desired
+
+
+  
+```
+
+
+```{r}
+# Expanded Track Data
+
+peaks_merged_sf <- st_as_sf(x = peaks_merged, coords = c("lon","lat"), crs = 4326)
+mapview(peaks_merged_sf)
+```
+
 
