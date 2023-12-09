@@ -47,6 +47,8 @@ check_pkg("phonTools")
 check_pkg("devtools")
 check_pkg("stringr")
 check_pkg("zoo")
+check_pkg("RColorBrewer")
+check_pkg("spatstat")
 
 ```
 
@@ -390,8 +392,8 @@ track_sf_F <- st_as_sf(x = track_F, coords = c("lon","lat"), crs = 4326) %>% arr
 mapview(track_sf_F)
 
 # Creating trajectory by combining the coordinate points into multipoint feature
-traj <- st_union(track_sf$geometry)
-traj_sf <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
+traj <- st_union(track_sf_A$geometry)
+traj_sf_A <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
 # mapview(traj_sf) # NOT WORKING PROPERLY > ORDER IS NOT CORRECT
 ```
 
@@ -513,17 +515,20 @@ EDA_F
 ```
 
 ```{r visualizing EDA values}
-plt_A <- qplot(data=EDA_A,x = Timestamp, y=EDA,geom="line",col="Annika") 
+plt_A <- qplot(data=EDA_A,x = Timestamp, y=EDA,geom="line",col="Annika") +
+  xlab("Time") +
+  ylab("GSR")
 ggplotly(plt_A,width = 900,height=450)
-```
 
-```{r}
-plt_F <- qplot(data=EDA_F,x = Timestamp, y=EDA,geom="line",col="Fabienne") 
+plt_F <- qplot(data=EDA_F,x = Timestamp, y=EDA,geom="line",col="Fabienne") +
+  xlab("Time") +
+  ylab("GSR")
 ggplotly(plt_F,width = 900,height=450)
 ```
 
-```{r Filter & Smoothing}
 
+```{r Filter & Smoothing}
+# Annika
 EDA_A_filtered <- EDA_A |>
   mutate(Q1 = quantile(EDA, 0.25),
          Q3 = quantile(EDA, 0.75),
@@ -538,13 +543,28 @@ EDA_A_smoothed <- EDA_A_filtered |>
 
 plt_A <- qplot(data=EDA_A_smoothed,x = Timestamp, y=GSR_smoothed,geom="line",col="Annika") 
 ggplotly(plt_A,width = 900,height=450)
+
+# Fabienne
+EDA_F_filtered <- EDA_F |>
+  mutate(Q1 = quantile(EDA, 0.25),
+         Q3 = quantile(EDA, 0.75),
+         IQR = Q3 - Q1) |>
+  filter(EDA < (Q3 + 1.5 * IQR)) # Adjust the multiplier for more stringent or lenient filtering
+
+
+window_size <- 5
+
+EDA_F_smoothed <- EDA_F_filtered |>
+  mutate(GSR_smoothed = rollmean(EDA, k = window_size, fill = NA))
+
+plt_F <- qplot(data=EDA_F_smoothed,x = Timestamp, y=GSR_smoothed,geom="line",col="Annika") 
+ggplotly(plt_F, width = 900,height=450)
 ```
 
+To precisely analyze the GSR signal and accurately identify GSR peaks within the time domain, it's essential to eliminate the tonic component from the raw signal.
 
-
-```{r, warning = F}
+```{r Tonic skin conductance level (SCL)}
 # Assuming 'EDA_A_filtered' is a data frame with columns 'Timestamp' and 'EDA'
-
 
 window_size <- 32  # Adjust the window size as needed
 
@@ -566,7 +586,7 @@ lines(EDA_A_filtered$Timestamp, EDA_A_smoothed$tonic_values, col = 'red', lwd = 
 legend("topleft", legend = c("GSR", "Tonic GSR"), col = c("blue", "red"), lty = 1:2, lwd = c(1, 2))
 ```
 
-```{r}
+```{r Phasic skin conductance response (SCR)}
 # Compute Phasic Values by subtracting tonic values from original values
 EDA_A_smoothed$phasic_values <- EDA_A_smoothed$GSR_smoothed - EDA_A_smoothed$tonic_values
 
@@ -592,13 +612,16 @@ print(peak_data_A)
 
 ```
 
+
 ```{r}
 
 # Make sure timestamp has correct format --> convert timestamp from Empatica data to UTC
-peak_data_A$Timestamp <- as.POSIXct(peak_data_A$Timestamp, tz = "UTC")
-peak_data_A$Timestamp <- with_tz(peak_data_A$Timestamp, tz = "Europe/Zurich")
 track_sf_A$ts_POSIXct <- as.POSIXct(track_sf_A$ts_POSIXct, tz = "UTC")
 track_sf_A$ts_POSIXct <- with_tz(track_sf_A$ts_POSIXct, tz = "Europe/Zurich")
+
+track_A$ts_POSIXct <- as.POSIXct(track_A$ts_POSIXct, tz = "UTC")
+track_A$ts_POSIXct <- with_tz(track_A$ts_POSIXct, tz = "Europe/Zurich")
+
 
 # Interpolate track data to have a sampling rate of 1 Hz. 
 expanded_track_A <- track_A %>%
@@ -608,16 +631,18 @@ expanded_track_A <- track_A %>%
   fill(lat, .direction = "downup") |>
   fill(lon, .direction = "downup")
 
+# Drop index column 
+expanded_track_A <- expanded_track_A[, -5]
 
 # Round timestamps to the nearest second to handle minor differences
 peak_data_A$Timestamp <- round(peak_data_A$Timestamp, units = "secs")
-track$ts_POSIXct <- round(track$ts_POSIXct, units = "secs")
+track_A$ts_POSIXct <- round(track_A$ts_POSIXct, units = "secs")
 
 # Join Track and Peaks
-peaks_merged <- left_join(peak_data, expanded_track_A, by = c("Timestamp" = "ts_POSIXct"))
+peaks_merged_A <- left_join(peak_data_A, expanded_track_A, by = c("Timestamp" = "ts_POSIXct"))
 
 # Join Track and full EDA df
-full_merged<- left_join(EDA_A_smoothed, expanded_track, by = c("Timestamp" = "ts_POSIXct")) |>
+full_merged_A <- left_join(EDA_A_smoothed, expanded_track_A, by = c("Timestamp" = "ts_POSIXct")) |>
   fill(elevation, .direction = "down") |>
   fill(lat, .direction = "downup") |>
   fill(lon, .direction = "downup")
@@ -627,12 +652,25 @@ full_merged<- left_join(EDA_A_smoothed, expanded_track, by = c("Timestamp" = "ts
 ```{r}
 
 # Create SF Object
-full_merged_sf <- st_as_sf(x = full_merged, coords = c("lon","lat"), crs = 4326)
+full_merged_sf_A <- st_as_sf(x = full_merged_A, coords = c("lon","lat"), crs = 4326)
 
 # Create a plot with two spatial layers and color mapping for 'phasic_values'
 ggplot() +
-  geom_sf(data = full_merged_sf, aes(color = phasic_values)) +
+  geom_sf(data = full_merged_sf_A, aes(color = phasic_values)) +
   scale_color_gradient(low = "blue", high = "red")  # Adjust colors as desired
+
+
+# Mapview plot:
+color_palette <- colorRampPalette(c("blue", "white", "red"))(n = 100)
+
+mapview(full_merged_sf_A, 
+        zcol = "phasic_values", 
+        col.regions = color_palette, 
+        cex = ifelse(full_merged_sf_A$phasic_values > 0.01, 3, 1), 
+        lwd = 0.01, 
+        layer.name = "Phasic SCR")
+
+mapview_SCR_A@map$col$legend$title <- "Custom Legend Title"
 
 ```
 
@@ -644,16 +682,33 @@ bike_network <- read_rds("data/full_zh_biking_network.rds")
 
 ```{r}
 # Expanded Track Data
-peaks_merged_sf <- st_as_sf(x = peaks_merged, coords = c("lon","lat"), crs = 4326)
-mapview(peaks_merged_sf)
+peaks_merged_sf_A <- st_as_sf(x = peaks_merged_A, coords = c("lon","lat"), crs = 4326)
+mapview(peaks_merged_sf_A)
 
-extent <- st_bbox(peaks_merged_sf)
+extent <- st_bbox(peaks_merged_sf_A)
 
 tmap_mode("view")
-tm_shape(peaks_merged_sf) +
+tm_shape(peaks_merged_sf_A) +
   tm_dots(size = 0.1)
+```
 
 
+```{r Spatial point pattern analysis}
+
+# Extract coordinates from the peak SCR value dataframe
+peaks_A_coor <- peaks_merged_sf_A[4]
+bike_acc_coor <- b[37]
+
+# Extract bounding box coordinates for the window
+window_bounds <- st_bbox(peaks_A_coor)
+
+# Create a rectangle window using the bounding box coordinates
+window_bb <- owin(xrange = c(window_bounds["xmin"], window_bounds["xmax"]),
+               yrange = c(window_bounds["ymin"], window_bounds["ymax"]))
+
+# Convert spatial datasets to point patterns
+peaks_A_ppp <- as.ppp(peaks_A_coor_sp)
+accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), window = window_bb)
 
 ```
 
