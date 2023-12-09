@@ -693,10 +693,10 @@ tm_shape(peaks_merged_sf_A) +
 ```
 
 
-```{r Spatial point pattern analysis}
+```{r Spatial point pattern analysis, warning=FALSE}
 
 # Extract coordinates from the peak SCR value dataframe
-peaks_A_coor <- peaks_merged_sf_A[4]
+peaks_A_coor <- st_transform(peaks_merged_sf_A[4], crs = 2056)
 bike_acc_coor <- b[37]
 
 # Extract bounding box coordinates for the window
@@ -707,8 +707,31 @@ window_bb <- owin(xrange = c(window_bounds["xmin"], window_bounds["xmax"]),
                yrange = c(window_bounds["ymin"], window_bounds["ymax"]))
 
 # Convert spatial datasets to point patterns
-peaks_A_ppp <- as.ppp(peaks_A_coor_sp)
-accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), window = window_bb)
+peaks_A_ppp <- as.ppp(st_coordinates(peaks_A_coor), W = window_bb)
+accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), W = window_bb)
+
+# Plot point patterns
+plot(peaks_A_ppp, main = "Skin Conductance Response Peaks")
+plot(accidents_ppp, main = "Accident Locations", add = TRUE, col = "red")
+```
+
+```{r Spatial Correlation}
+# Create multitype point patterns with different types (1 and 2)
+peaks_A_ppp$marks <- rep(1, npoints(peaks_A_ppp))
+accidents_ppp$marks <- rep(2, npoints(accidents_ppp))
+
+# Combine both point patterns into a single multitype point pattern
+combined_ppp <- superimpose(peaks_A_ppp, accidents_ppp)
+is.multitype(combined_ppp)
+
+marks(combined_ppp) <- factor("gaa")
+is.multitype(combined_ppp)
+
+# Compute the cross-K function for the multitype point pattern
+cross_K <- Kcross(combined_ppp)
+
+# Plot the cross-K function
+plot(cross_K, main = "Cross-K Function")
 
 ```
 
