@@ -674,6 +674,8 @@ mapview_SCR_A@map$col$legend$title <- "Custom Legend Title"
 
 ```
 
+## Statistical analysis of the SCR results 
+
 ```{r}
 bike_network <- read_rds("data/full_zh_biking_network.rds")
 
@@ -706,7 +708,7 @@ window_bounds <- st_bbox(peaks_A_coor)
 window_bb <- owin(xrange = c(window_bounds["xmin"], window_bounds["xmax"]),
                yrange = c(window_bounds["ymin"], window_bounds["ymax"]))
 
-# Convert spatial datasets to point patterns
+# Convert spatial ojects to point patterns
 peaks_A_ppp <- as.ppp(st_coordinates(peaks_A_coor), W = window_bb)
 accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), W = window_bb)
 
@@ -716,23 +718,53 @@ plot(accidents_ppp, main = "Accident Locations", add = TRUE, col = "red")
 ```
 
 ```{r Spatial Correlation}
-# Create multitype point patterns with different types (1 and 2)
-peaks_A_ppp$marks <- rep(1, npoints(peaks_A_ppp))
-accidents_ppp$marks <- rep(2, npoints(accidents_ppp))
-
 # Combine both point patterns into a single multitype point pattern
 combined_ppp <- superimpose(peaks_A_ppp, accidents_ppp)
 is.multitype(combined_ppp)
 
-marks(combined_ppp) <- factor("gaa")
+marks(combined_ppp) <- factor(c(rep(1, npoints(peaks_A_ppp)), rep(2, npoints(accidents_ppp))))
+# factor() in the context of spatial analysis, it's often used to assign different types or categories to points or observations within a dataset. Create multitype point patterns > assign marks of 1 to peaks_A_ppp points and marks of 2 to accidents_ppp points within the combined_ppp object.
 is.multitype(combined_ppp)
 
-# Compute the cross-K function for the multitype point pattern
+# Compute the cross-K function for the multitype point pattern: 
+# Multiple K function counts the expected number of points x within a given distance of a point of type y
 cross_K <- Kcross(combined_ppp)
+summary(cross_K)
+
+# Try Ripley's K function (edge effect correction)
+kf <- Kest(combined_ppp, correction = "Ripley")
+plot(kf)
 
 # Plot the cross-K function
 plot(cross_K, main = "Cross-K Function")
+```
+Interpretation: K cross function assesses the spatial correlation between different types of points. For example, it examines if one type of point tends to be closer or farther away from another type of point than expected under complete spatial randomness (CSR).
+
+Summary output:
+- r: Distance represents the distance range considered for analyzing spatial relationships.
+- theo: theoretical values are expected values of K based on complete spatial randomness (CRS). In CSR, the expected number of pairs of points at different distances is calculated based on the overall point density and the window shape
+- border: border correction values used to correct for edge effects or border conditions in spatial analysis. They account for the fact that points near the edge of the study area might have fewer neighbors within a certain distance.
+- trans: transformation values in the context of spatial statistics might represent modifications applied to the original K function to better reflect spatial processes.
+- iso: isotropic values refer to uniformity in all directions 
+
+Interpretation of the plot: The plot shows that at all tested distances the actual observed value of K (iso) is greater than the theoretically derived expected value K(pois) indicating clustering.
+
+```{r test spatial correlation}
+# Extract theoretical and observed values
+theoretical_values <- cross_K$theo
+observed_values <- cross_K$r
+
+# Calculate Pearson correlation
+correlation_coefficient <- cor(theoretical_values, observed_values)
+print(correlation_coefficient)
 
 ```
+Pearson's correlation between observed and theoretical (CSR) values outputs a value of 0.968, which is near to 1 and hence indicates a very strong positive correlation. 
 
 
+
+
+To Do: 
+
+- plot of heart rate
+- volume of intersection of dbscan plot: intersection
