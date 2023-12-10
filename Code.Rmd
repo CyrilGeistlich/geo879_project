@@ -535,36 +535,43 @@ ggplotly(plt_F,width = 900,height=450)
 
 
 ```{r Filter & Smoothing}
+threshold <- 1
+
 # Annika
-EDA_A_filtered <- EDA_A |>
-  mutate(Q1 = quantile(EDA, 0.25),
-         Q3 = quantile(EDA, 0.75),
-         IQR = Q3 - Q1) |>
-  filter(EDA < (Q3 + 1.5 * IQR)) # Adjust the multiplier for more stringent or lenient filtering
+EDA_A$EDA[EDA_A$EDA  > threshold] <- 1
+
+# EDA_A_filtered <- EDA_A |>
+#   mutate(Q1 = quantile(EDA, 0.1),
+#          Q3 = quantile(EDA, 0.9),
+#          IQR = Q3 - Q1) |>
+#   filter(EDA < (Q3 + 1.5 * IQR)) # Adjust the multiplier for more stringent or lenient filtering
 
 
 window_size <- 5
 
-EDA_A_smoothed <- EDA_A_filtered |>
+EDA_A_smoothed <- EDA_A |>
   mutate(GSR_smoothed = rollmean(EDA, k = window_size, fill = NA))
 
 plt_A <- qplot(data=EDA_A_smoothed,x = Timestamp, y=GSR_smoothed,geom="line",col="Annika") 
 ggplotly(plt_A,width = 900,height=450)
 
 # Fabienne
-EDA_F_filtered <- EDA_F |>
-  mutate(Q1 = quantile(EDA, 0.25),
-         Q3 = quantile(EDA, 0.75),
-         IQR = Q3 - Q1) |>
-  filter(EDA < (Q3 + 1.5 * IQR)) # Adjust the multiplier for more stringent or lenient filtering
 
+EDA_F$EDA[EDA_F$EDA  > threshold] <- 1
+
+# Perform filtering on the transformed data
+# EDA_F_filtered <- EDA_F |>
+#   mutate(Q1 = quantile(log_eda, 0.25),
+#          Q3 = quantile(log_eda, 0.75),
+#          IQR = Q3 - Q1) |>
+#   filter(EDA < (Q3 + 1.5 * IQR))
 
 window_size <- 5
 
-EDA_F_smoothed <- EDA_F_filtered |>
+EDA_F_smoothed <- EDA_F |>
   mutate(GSR_smoothed = rollmean(EDA, k = window_size, fill = NA))
 
-plt_F <- qplot(data=EDA_F_smoothed,x = Timestamp, y=GSR_smoothed,geom="line",col="Annika") 
+plt_F <- qplot(data=EDA_F_smoothed,x = Timestamp, y=GSR_smoothed,geom="line",col="Fabienne") 
 ggplotly(plt_F, width = 900,height=450)
 ```
 
@@ -582,34 +589,35 @@ EDA_A_smoothed$tonic_values <- rollmean(EDA_A_smoothed$EDA, k = window_size, ali
 EDA_F_smoothed$tonic_values <- rollmean(EDA_F_smoothed$EDA, k = window_size, align = "center", fill = NA)
 
 # Plotting the original EDA measurements and the smoothed trend
-plot(EDA_A_filtered$Timestamp, EDA_A_smoothed$EDA, type = 'l', col = 'blue', 
+plot(EDA_A_smoothed$Timestamp, EDA_A_smoothed$EDA, type = 'l', col = 'blue', 
      xlab = 'Time',
      ylab = 'Galvanic Skin Response [µS]',
      main ="GSR and extracted Tonic GSR curve - Annika")
 
 # Add the smoothed trend using lines()
-lines(EDA_A_filtered$Timestamp, EDA_A_smoothed$tonic_values, col = 'red', lwd = 2)
+lines(EDA_A_smoothed$Timestamp, EDA_A_smoothed$tonic_values, col = 'red', lwd = 2)
 
 # Add legend
 legend("topleft", legend = c("GSR", "Tonic GSR"), col = c("blue", "red"), lty = 1:2, lwd = c(1, 2))
 
 # Plot Fabienne
-plot(EDA_F_filtered$Timestamp, EDA_F_smoothed$EDA, type = 'l', col = 'blue', 
+plot(EDA_F_smoothed$Timestamp, EDA_F_smoothed$EDA, type = 'l', col = 'blue', 
      xlab = 'Time',
      ylab = 'Galvanic Skin Response [µS]',
      main ="GSR and extracted Tonic GSR curve - Fabienne")
 
 # Add the smoothed trend using lines()
-lines(EDA_F_filtered$Timestamp, EDA_F_smoothed$tonic_values, col = 'red', lwd = 2)
+lines(EDA_F_smoothed$Timestamp, EDA_F_smoothed$tonic_values, col = 'red', lwd = 2)
 
 # Add legend
 legend("topleft", legend = c("GSR", "Tonic GSR"), col = c("blue", "red"), lty = 1:2, lwd = c(1, 2))
 ```
 
 ```{r Phasic skin conductance response (SCR)}
+
 # Compute Phasic Values by subtracting tonic values from original values
 EDA_A_smoothed$phasic_values <- EDA_A_smoothed$GSR_smoothed - EDA_A_smoothed$tonic_values
-EDA_F_smoothed$phasic_values <- EDA_F_smoothed$GSR_smoothed - EDA_A_smoothed$tonic_values
+EDA_F_smoothed$phasic_values <- (EDA_F_smoothed$GSR_smoothed - EDA_F_smoothed$tonic_values)
 
 plt_A_phasic <- qplot(data=EDA_A_smoothed,x = Timestamp, y=phasic_values,geom="line") +
   xlab("Time") +
@@ -635,7 +643,7 @@ peak_positions_A <- which(EDA_A_smoothed$phasic_values > peaksize)
 peak_timestamps_A <- EDA_A_smoothed$Timestamp[peak_positions_A]
 
 peak_positions_F <- which(EDA_F_smoothed$phasic_values > peaksize)
-peak_timestamps_F <- EDA_A_smoothed$Timestamp[peak_positions_F]
+peak_timestamps_F <- EDA_F_smoothed$Timestamp[peak_positions_F]
 
 
 # Display the positions and timestamps of the peaks
@@ -648,16 +656,18 @@ print(peak_data_F)
 
 
 ```{r Track interpolation Annika}
+track_sf_A1 <- track_sf_A
+track_A1 <- track_A
 
 # Make sure timestamp has correct format --> convert timestamp from Empatica data to UTC
-track_sf_A$ts_POSIXct <- as.POSIXct(track_sf_A$ts_POSIXct, tz = "UTC")
-track_sf_A$ts_POSIXct <- with_tz(track_sf_A$ts_POSIXct, tz = "Europe/Zurich")
+track_sf_A1$ts_POSIXct <- as.POSIXct(track_sf_A$ts_POSIXct, tz = "UTC")
+track_sf_A1$ts_POSIXct <- with_tz(track_sf_A$ts_POSIXct, tz = "Europe/Zurich")
 
-track_A$ts_POSIXct <- as.POSIXct(track_A$ts_POSIXct, tz = "UTC")
-track_A$ts_POSIXct <- with_tz(track_A$ts_POSIXct, tz = "Europe/Zurich")
+track_A1$ts_POSIXct <- as.POSIXct(track_A$ts_POSIXct, tz = "UTC")
+track_A1$ts_POSIXct <- with_tz(track_A$ts_POSIXct, tz = "Europe/Zurich")
 
 # Interpolate track data to have a sampling rate of 1 Hz. 
-expanded_track_A <- track_A %>%
+expanded_track_A <- track_A1 %>%
   complete(ts_POSIXct = seq(min(ts_POSIXct), max(ts_POSIXct), by = "1 sec")) |>
   # Fills missing values generated by the
   fill(elevation, .direction = "down") |>  #interpolation
@@ -665,11 +675,11 @@ expanded_track_A <- track_A %>%
   fill(lon, .direction = "downup")
 
 # Drop index column 
-expanded_track_A <- expanded_track_A[, -5]
+expanded_track_A <- expanded_track_A[,-5]
 
 # Round timestamps to the nearest second to handle minor differences
 peak_data_A$Timestamp <- round(peak_data_A$Timestamp, units = "secs")
-track_A$ts_POSIXct <- round(track_A$ts_POSIXct, units = "secs")
+expanded_track_A$ts_POSIXct <- round(expanded_track_A$ts_POSIXct, units = "secs")
 
 # Join Track and Peaks
 peaks_merged_A <- left_join(peak_data_A, expanded_track_A, by = c("Timestamp" = "ts_POSIXct"))
@@ -680,9 +690,14 @@ full_merged_A <- left_join(EDA_A_smoothed, expanded_track_A, by = c("Timestamp" 
   fill(lat, .direction = "downup") |>
   fill(lon, .direction = "downup")
 
+ full_merged_A <- full_merged_A[complete.cases(full_merged_A), ]
+
 ```
 
 ```{r Track interploation Fabi}
+track_sf_F1 <- track_sf_F
+track_F1 <- track_F
+
 # Make sure timestamp has correct format --> convert timestamp from Empatica data to UTC
 track_sf_F$ts_POSIXct <- as.POSIXct(track_sf_F$ts_POSIXct, tz = "UTC")
 track_sf_F$ts_POSIXct <- with_tz(track_sf_F$ts_POSIXct, tz = "Europe/Zurich")
@@ -713,11 +728,15 @@ full_merged_F <- left_join(EDA_F_smoothed, expanded_track_F, by = c("Timestamp" 
   fill(elevation, .direction = "down") |>
   fill(lat, .direction = "downup") |>
   fill(lon, .direction = "downup")
+
+ full_merged_F <- full_merged_F[complete.cases(full_merged_F), ]
+
 ```
 
 
 ```{r Merged SCR and track}
 # Create SF Object
+#### RUN AGAIN AFTER ERROR ####
 full_merged_sf_A <- st_as_sf(x = full_merged_A, coords = c("lon","lat"), crs = 4326)
 full_merged_sf_F <- st_as_sf(x = full_merged_F, coords = c("lon","lat"), crs = 4326)
 
@@ -761,6 +780,8 @@ bike_network <- read_rds("data/full_zh_biking_network.rds")
 ```
 
 ```{r}
+peaks_merged_A <- peaks_merged_A[complete.cases(peaks_merged_A), ]
+
 # Expanded Track Data
 peaks_merged_sf_A <- st_as_sf(x = peaks_merged_A, coords = c("lon","lat"), crs = 4326)
 mapview(peaks_merged_sf_A)
@@ -770,6 +791,8 @@ extent <- st_bbox(peaks_merged_sf_A)
 tmap_mode("view")
 tm_shape(peaks_merged_sf_A) +
   tm_dots(size = 0.1)
+
+peaks_merged_F <- peaks_merged_F[complete.cases(peaks_merged_F), ]
 
 # Fabi
 peaks_merged_sf_F <- st_as_sf(x = peaks_merged_F, coords = c("lon","lat"), crs = 4326)
