@@ -405,7 +405,6 @@ traj_sf_A <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
 EDA_A <- read_csv("data/E4_data_Annika/EDA.csv")
 EDA_F <- read_csv("data/E4_data_Fabienne/EDA.csv")
 temp_A <- read_csv("data/E4_data_Annika/tags.csv")
-
 ```
 
 # Following the tutorial to parse the E4 data https://rpubs.com/OliverSW/eda-analysis-tutorial
@@ -485,16 +484,17 @@ read.empatica.temp <- function(file) {
 }
 
 read.empatica <- function(path) {
-  FIELDS <- c("Z","Y","X","Battery","Temperature","EDA")
-  FILES <- c("ACC.csv","BVP.csv","EDA.csv","TEMP.csv","IBI.csv")
+  FIELDS <- c("Z","Y","X","Battery","Temperature","EDA", "HR")
+  FILES <- c("ACC.csv","BVP.csv","EDA.csv","TEMP.csv","IBI.csv", "HR.csv")
   #First lets read the file header info
   acc <- read.empatica.acc(file.path(path,"ACC.csv"))
   bvp <- read.empatica.bvp(file.path(path,"BVP.csv"))
   ibi <- read.empatica.ibi(file.path(path,"IBI.csv"))
   temp <- read.empatica.temp(file.path(path,"TEMP.csv"))
   eda <- read.empatica.eda(file.path(path,"EDA.csv"))
+  hr <- read.empatica.hr((file.path(path, "HR.csv")))
   
-  data <- list(ACC=acc,BVP=bvp,EDA=eda,TEMP=temp,IBI=ibi)
+  data <- list(ACC=acc,BVP=bvp,EDA=eda,TEMP=temp,IBI=ibi, HR=hr)
   attr(data,"class") <- "eda"
   return(data)
 }
@@ -508,10 +508,17 @@ e4Data_A <- read.empatica("data/E4_data_Annika/")
 EDA_A <- e4Data_A$EDA
 EDA_A
 
+# Heart rate data
+HR_A <- e4Data_A$HR
+HR_A
+
 # Data Fabi
 e4Data_F <- read.empatica("data/E4_data_Fabienne/")
 EDA_F <- e4Data_F$EDA
 EDA_F
+
+HR_F <- e4Data_F$HR
+HR_F
 ```
 
 ```{r visualizing EDA values}
@@ -761,7 +768,19 @@ print(correlation_coefficient)
 ```
 Pearson's correlation between observed and theoretical (CSR) values outputs a value of 0.968, which is near to 1 and hence indicates a very strong positive correlation. 
 
+## Comparison to HR data
 
+```{r visualizing EDA values}
+plt_HR_A <- qplot(data=HR_A,x = Timestamp, y=HR,geom="line",col="Annika") +
+  xlab("Time") +
+  ylab("Heart Rate")
+ggplotly(plt_HR_A,width = 900,height=450)
+
+plt_HR_F <- qplot(data=HR_F,x = Timestamp, y=HR,geom="line",col="Fabienne") +
+  xlab("Time") +
+  ylab("Heart Rate")
+ggplotly(plt_HR_F,width = 900,height=450)
+```
 
 
 To Do: 
