@@ -397,6 +397,8 @@ traj_sf_A <- st_sf(geometry = traj) %>% st_cast("LINESTRING")
 # mapview(traj_sf) # NOT WORKING PROPERLY > ORDER IS NOT CORRECT
 ```
 
+
+
 ## Read Empatica 4 Data
 
 # EDA - Electrodermal Activity (Unit: microsiemens)
@@ -588,6 +590,9 @@ window_size <- 32  # Adjust the window size as needed
 EDA_A_smoothed$tonic_values <- rollmean(EDA_A_smoothed$EDA, k = window_size, align = "center", fill = NA)
 EDA_F_smoothed$tonic_values <- rollmean(EDA_F_smoothed$EDA, k = window_size, align = "center", fill = NA)
 
+# Define the file name for the plot
+png(file = "plots/GSR_plot_Annika.png", width = 800, height = 600)
+
 # Plotting the original EDA measurements and the smoothed trend
 plot(EDA_A_smoothed$Timestamp, EDA_A_smoothed$EDA, type = 'l', col = 'blue', 
      xlab = 'Time',
@@ -600,17 +605,29 @@ lines(EDA_A_smoothed$Timestamp, EDA_A_smoothed$tonic_values, col = 'red', lwd = 
 # Add legend
 legend("topleft", legend = c("GSR", "Tonic GSR"), col = c("blue", "red"), lty = 1:2, lwd = c(1, 2))
 
-# Plot Fabienne
+dev.off()
+
+# Define the file name for the plot
+png(file = "plots/GSR_plot_Fabienne.png", width = 800, height = 600)
+
+# Plot Fabienne with increased text size
 plot(EDA_F_smoothed$Timestamp, EDA_F_smoothed$EDA, type = 'l', col = 'blue', 
      xlab = 'Time',
      ylab = 'Galvanic Skin Response [µS]',
-     main ="GSR and extracted Tonic GSR curve - Fabienne")
+     main = "GSR and extracted Tonic GSR curve - Fabienne",
+     cex.axis = 1.2, cex.lab = 1.4, cex.main = 2)  # Adjust text size for axis labels and title
 
 # Add the smoothed trend using lines()
 lines(EDA_F_smoothed$Timestamp, EDA_F_smoothed$tonic_values, col = 'red', lwd = 2)
 
-# Add legend
-legend("topleft", legend = c("GSR", "Tonic GSR"), col = c("blue", "red"), lty = 1:2, lwd = c(1, 2))
+# Add legend with increased text size
+legend("topleft", legend = c("GSR", "Tonic GSR"), col = c("blue", "red"), lty = 1:2, lwd = c(1, 2), cex = 1.2) 
+
+# The 'cex' parameter is used to adjust the size of text elements
+
+
+
+dev.off()
 ```
 
 ```{r Phasic skin conductance response (SCR)}
@@ -885,6 +902,54 @@ plt_HR_F <- qplot(data=HR_F,x = Timestamp, y=HR,geom="line",col="Fabienne") +
   ylab("Heart Rate")
 ggplotly(plt_HR_F,width = 900,height=450)
 ```
+
+```{r, warning = F, fig.widht = 10, fig.height = 9}
+library(sfnetworks)
+edges <- bike_network %>% activate(edges) %>% st_as_sf()
+fluss <- st_read("data/fluss/VEC200_FlowingWater.shp") |> filter(NAMN == "Limmat")
+
+bbox_track <- st_bbox(track_sf_A) |> st_as_sfc() |> st_transform(crs = 2056)
+
+zh_districts_intersect <- st_intersection(zh_districts, st_buffer(bbox_track,500))
+edges_intersect <- st_intersection(edges, st_buffer(bbox_track,500)) |>
+  filter(highway != "footway") |>
+  filter(highway != "path")
+
+tmap_mode("plot")
+# Assuming you have loaded necessary libraries like 'sf' and 'tmap'
+
+# Convert first_point and last_point to sf objects
+first_point <- st_as_sf(track_sf_A[1, ]) %>%
+  mutate(text = "Start")
+last_point <- st_as_sf(track_sf_A[nrow(track_sf_A), ]) %>%
+  mutate(text = "End")
+
+# Create a tmap plot with points, lines, and text labels
+track_map <- tm_shape(zh_districts_intersect) +
+  tm_polygons() +
+tm_shape(fluss) +
+  tm_lines(col = "lightblue1", lwd = 10) +
+tm_shape(edges_intersect) +
+  tm_lines() +
+tm_shape(track_sf_A) +
+  tm_dots(col = "red", size = 0.02) +
+tm_shape(first_point) +
+  tm_dots(col = "red1", size = 0.5) +
+  tm_text("text", size = 2,ymod = 0.6,xmod = 2, col = "red") +  # Specify the column containing text
+tm_shape(last_point) +
+  tm_dots(col = "red1", size = 0.5) +
+  tm_text("text", size = 2, ymod = -0.8, col = "red") +  # Specify the column containing text
+tm_layout(title = "Cycling Track", title.position = c("center", "top"), 
+          inner.margins = c(0.08, 0.08, 0.08, 0.08),
+          title.size = 2, 
+          frame = F)
+
+track_map
+tmap_save(track_map, filename = "plots/cycling_track_map.png", width = 10, height = 8, units = "in")
+
+```
+
+
 
 
 ## To Do: 
