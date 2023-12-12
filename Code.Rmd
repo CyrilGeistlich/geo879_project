@@ -646,8 +646,9 @@ ggplotly(plt_A_phasic,width = 900,height=450)
 plt_F_phasic <- qplot(data=EDA_F_smoothed,x = Timestamp, y=phasic_values,geom="line") +
   xlab("Time") +
   ylab("Phasic Values [µS]") +
-  ggtitle("Extracted Phasic Values from GSR Measurement - Fabienne")
-
+  ggtitle("Extracted Phasic Values from GSR Measurement - Fabienne")+
+  geom_hline(yintercept = 0.01, linetype = "dotted", color = "red", size = 0.5) 
+  
 ggplotly(plt_F_phasic,width = 900,height=450)
 ```
 
@@ -771,20 +772,28 @@ ggplot() +
 
 color_palette <- colorRampPalette(c("blue", "white", "red"))(n = 100)
 
-mapview(full_merged_sf_A, 
+# create subset of dataframe filtering out strong outliers 
+full_merged_sf_A_sub <- subset(full_merged_sf_A, phasic_values<0.06) %>% subset(., phasic_values>-0.06)
+
+full_merged_sf_F_sub <- subset(full_merged_sf_F, phasic_values<0.06) %>% subset(., phasic_values>-0.06)
+
+mapview(full_merged_sf_A_sub, 
         zcol = "phasic_values", 
         col.regions = color_palette, 
-        cex = ifelse(full_merged_sf_A$phasic_values > 0.01, 3, 1), 
+        cex = ifelse(full_merged_sf_A$phasic_values > 0.03, 5, 1), 
         lwd = 0.01, 
         layer.name = "Phasic SCR")
 
-
-mapview(full_merged_sf_F, 
+mapview(full_merged_sf_F_sub, 
         zcol = "phasic_values", 
         col.regions = color_palette, 
-        cex = ifelse(full_merged_sf_F$phasic_values > 0.01, 3, 1), 
+        cex = ifelse(full_merged_sf_F$phasic_values > 0.03, 5, 1), 
         lwd = 0.01, 
         layer.name = "Phasic SCR")
+```
+
+```{r}
+
 ```
 
 
@@ -818,8 +827,11 @@ mapview(peaks_merged_sf_F)
 extent <- st_bbox(peaks_merged_sf_F)
 
 tmap_mode("view")
+tm_shape(b) +
+  tm_dots(size = 0.1, col = "red")+
 tm_shape(peaks_merged_sf_F) +
   tm_dots(size = 0.1)
+
 ```
 
 
@@ -843,6 +855,7 @@ accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), W = window_bb)
 # Plot point patterns
 plot(peaks_A_ppp, main = "Skin Conductance Response Peaks")
 plot(accidents_ppp, main = "Accident Locations", add = TRUE, col = "red")
+plot(peaks_A_ppp, main = "Skin Conductance Response Peaks", add = TRUE, col = "blue")
 ```
 
 ```{r Spatial Correlation}
@@ -861,7 +874,12 @@ summary(cross_K)
 
 # Try Ripley's K function (edge effect correction)
 kf <- Kest(combined_ppp, correction = "Ripley")
+
+png(file = "plots/Kcross.png", width = 800, height = 600)
+
 plot(kf)
+
+dev.off
 
 # Plot the cross-K function
 plot(cross_K, main = "Cross-K Function")
@@ -950,6 +968,31 @@ tmap_save(track_map, filename = "plots/cycling_track_map.png", width = 10, heigh
 ```
 
 
+```{r}
+tmap_mode("view")
+
+track_peak <- tm_shape(zh_districts_intersect) +
+  tm_polygons() +
+tm_shape(fluss) +
+  tm_lines(col = "lightblue1", lwd = 10) +
+tm_shape(edges_intersect) +
+  tm_lines() +
+tm_shape(track_sf_F) +
+  tm_dots(col = "red", size = 0.01) +
+tm_shape(first_point) +
+  tm_dots(col = "red1", size = 0.1) +
+tm_shape(last_point) +
+  tm_dots(col = "red1", size = 0.1) +
+tm_shape(peaks_merged_sf_F) +
+  tm_dots(col = "blue", size = 0.1) +
+tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
+          inner.margins = c(0.1, 0.1, 0.1, 0.1),
+          title.size = 1, 
+          frame = F)
+
+track_peak
+tmap_save(track_peak, filename = "plots/cycling_peak_map.png", width = 10, height = 8, units = "in")
+```
 
 
 ## To Do: 
