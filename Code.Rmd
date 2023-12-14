@@ -792,10 +792,6 @@ mapview(full_merged_sf_F_sub,
         layer.name = "Phasic SCR")
 ```
 
-```{r}
-
-```
-
 
 ## Statistical analysis of the SCR results 
 
@@ -826,7 +822,7 @@ mapview(peaks_merged_sf_F)
 
 extent <- st_bbox(peaks_merged_sf_F)
 
-tmap_mode("view")
+tmap_mode("plot")
 tm_shape(b) +
   tm_dots(size = 0.1, col = "red")+
 tm_shape(peaks_merged_sf_F) +
@@ -834,12 +830,31 @@ tm_shape(peaks_merged_sf_F) +
 
 ```
 
+```{r Buffer track and intersection}
+# create buffer around set of coordinate points 
+track_sf_A_buffer <- st_buffer(track_sf_A, dist = 30)
+mapview(track_sf_A_buffer)
+
+# merge buffer 
+track_sf_A_buffer <- st_union(track_sf_A_buffer)
+mapview(track_sf_A_buffer) + mapview(b, cex = 1)
+# check buffer size and accident locations in mapview 
+
+# transform CRS
+track_sf_A_buffer <- st_transform(track_sf_A_buffer, st_crs(b))
+
+# intersection of bike accidents b with buffer of track
+acc_buffer <- st_intersection(b, track_sf_A_buffer)
+
+mapview(acc_buffer)
+```
+
 
 ```{r Spatial point pattern analysis, warning=FALSE}
 
 # Extract coordinates from the peak SCR value dataframe
 peaks_A_coor <- st_transform(peaks_merged_sf_A[4], crs = 2056)
-bike_acc_coor <- b[37]
+bike_acc_coor <- acc_buffer[37]
 
 # Extract bounding box coordinates for the window
 window_bounds <- st_bbox(peaks_A_coor)
@@ -853,7 +868,7 @@ peaks_A_ppp <- as.ppp(st_coordinates(peaks_A_coor), W = window_bb)
 accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), W = window_bb)
 
 # Plot point patterns
-plot(peaks_A_ppp, main = "Skin Conductance Response Peaks")
+plot(peaks_A_ppp, main = "Accidents and SCR Peaks along Track")
 plot(accidents_ppp, main = "Accident Locations", add = TRUE, col = "red")
 plot(peaks_A_ppp, main = "Skin Conductance Response Peaks", add = TRUE, col = "blue")
 ```
