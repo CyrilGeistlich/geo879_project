@@ -49,6 +49,7 @@ check_pkg("stringr")
 check_pkg("zoo")
 check_pkg("RColorBrewer")
 check_pkg("spatstat")
+check_pkg("car")
 
 ```
 
@@ -639,7 +640,8 @@ EDA_F_smoothed$phasic_values <- (EDA_F_smoothed$GSR_smoothed - EDA_F_smoothed$to
 plt_A_phasic <- qplot(data=EDA_A_smoothed,x = Timestamp, y=phasic_values,geom="line") +
   xlab("Time") +
   ylab("Phasic Values [µS]") +
-  ggtitle("Extracted Phasic Values from GSR Measurement - Annika")
+  ggtitle("Extracted Phasic Values from GSR Measurement - Annika") +
+  geom_hline(yintercept = 0.01, linetype = "dotted", color = "red", size = 0.5)
 
 ggplotly(plt_A_phasic,width = 900,height=450)
 
@@ -846,7 +848,7 @@ track_sf_A_buffer <- st_transform(track_sf_A_buffer, st_crs(b))
 # intersection of bike accidents b with buffer of track
 acc_buffer <- st_intersection(b, track_sf_A_buffer)
 
-mapview(acc_buffer)
+mapview(acc_buffer, zcol = "AccidentSeverityCategory_en")
 ```
 
 
@@ -1008,6 +1010,45 @@ tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "t
 track_peak
 tmap_save(track_peak, filename = "plots/cycling_peak_map.png", width = 10, height = 8, units = "in")
 ```
+
+```{r Spatial proximity}
+# Since the points (acc and SCR peaks) don't share exact coordinates -> explore relationship based on spatial proximity using nearest neighbou approach:
+
+full_merged_sf_A <- st_transform(full_merged_sf_A, st_crs(acc_buffer))
+
+# Calculate nearest neighbor distances and indices
+nearest_neighbors_A <- st_nearest_feature(acc_buffer, full_merged_sf_A)
+
+# Merge SCR values to accident locations based on nearest neighbors
+nn_A <- cbind(acc_buffer, nearest_neighbors_A)
+
+# Extract corresponding SCR values based on nearest neighbor indices
+nn_A$SCR_phasic <- full_merged_sf_A$phasic_values[nn_A$nearest_neighbors_A]
+```
+
+To predict the accident severity from phasic SCR values, we perform a linear regression model. Since we have categorical severity classes rather than continuous numerical values, we use dummy coding which leads to a table called contrast matrix. Generally, a categorical variable with n levels will be transformed into n-1 variables each with two levels. These n-1 new variables contain the same information than the single variable. This recoding creates a table called contrast matrix. By default option in R is to use the first level of the factor as a reference and interpret the remaining levels relative to this level.
+
+Using multinomial logistic regression (one predictor and response variable with multiple categories)
+
+```{r Categorical regression analysis}
+# Convert AccidentSeverityCategory_en into factor
+res <- model.matrix(~AccidentSeverityCategory_en, data = nn_A)
+head(res[, -1])
+
+library(nnet)
+
+# Fit multinomial logistic regression model
+model <- multinom(AccidentSeverityCategory_en ~ SCR_phasic, data = nn_A)
+
+# Summary of the model
+summary(model)
+
+```
+Using SCR phasic values as predictor variables to explain the categorical response variable bike accident severity (with 4 different levels) --> we try to understand if changes in the SCR phasic component are associated with changes in the categorical levels of accident severity.
+
+
+--> Try K-Nearest Neighbors (KNN): This method predicts the classification of a point based on the classes of its nearest neighbors in the feature space.
+
 
 
 ## To Do: 
