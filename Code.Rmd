@@ -770,6 +770,8 @@ ggplot() +
   scale_color_gradient(low = "blue", high = "red")  
 ```
 
+## Visualization 
+
 ```{r Mapview plot - SRC on track}
 
 color_palette <- colorRampPalette(c("blue", "white", "red"))(n = 100)
@@ -794,16 +796,87 @@ mapview(full_merged_sf_F_sub,
         layer.name = "Phasic SCR")
 ```
 
+```{r, warning = F, fig.widht = 10, fig.height = 9}
+library(sfnetworks)
+edges <- bike_network %>% activate(edges) %>% st_as_sf()
+fluss <- st_read("data/fluss/VEC200_FlowingWater.shp") |> filter(NAMN == "Limmat")
+
+bbox_track <- st_bbox(track_sf_A) |> st_as_sfc() |> st_transform(crs = 2056)
+
+zh_districts_intersect <- st_intersection(zh_districts, st_buffer(bbox_track,500))
+edges_intersect <- st_intersection(edges, st_buffer(bbox_track,500)) |>
+  filter(highway != "footway") |>
+  filter(highway != "path")
+
+tmap_mode("plot")
+# Assuming you have loaded necessary libraries like 'sf' and 'tmap'
+
+# Convert first_point and last_point to sf objects
+first_point <- st_as_sf(track_sf_A[1, ]) %>%
+  mutate(text = "Start")
+last_point <- st_as_sf(track_sf_A[nrow(track_sf_A), ]) %>%
+  mutate(text = "End")
+
+# Create a tmap plot with points, lines, and text labels
+track_map <- tm_shape(zh_districts_intersect) +
+  tm_polygons() +
+tm_shape(fluss) +
+  tm_lines(col = "lightblue1", lwd = 10) +
+tm_shape(edges_intersect) +
+  tm_lines() +
+tm_shape(track_sf_A) +
+  tm_dots(col = "red", size = 0.02) +
+tm_shape(first_point) +
+  tm_dots(col = "red1", size = 0.5) +
+  tm_text("text", size = 2,ymod = 0.6,xmod = 2, col = "red") +  # Specify the column containing text
+tm_shape(last_point) +
+  tm_dots(col = "red1", size = 0.5) +
+  tm_text("text", size = 2, ymod = -0.8, col = "red") +  # Specify the column containing text
+tm_layout(title = "Cycling Track", title.position = c("center", "top"), 
+          inner.margins = c(0.08, 0.08, 0.08, 0.08),
+          title.size = 2, 
+          frame = F)
+
+track_map
+tmap_save(track_map, filename = "plots/cycling_track_map.png", width = 10, height = 8, units = "in")
+
+```
+
+```{r Plot: Peaks along track}
+tmap_mode("view")
+
+track_peak <- tm_shape(zh_districts_intersect) +
+  tm_polygons() +
+tm_shape(fluss) +
+  tm_lines(col = "lightblue1", lwd = 10) +
+tm_shape(edges_intersect) +
+  tm_lines() +
+tm_shape(track_sf_F) +
+  tm_dots(col = "red", size = 0.01) +
+tm_shape(first_point) +
+  tm_dots(col = "red1", size = 0.1) +
+tm_shape(last_point) +
+  tm_dots(col = "red1", size = 0.1) +
+tm_shape(peaks_merged_sf_F) +
+  tm_dots(col = "blue", size = 0.1) +
+tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
+          inner.margins = c(0.1, 0.1, 0.1, 0.1),
+          title.size = 1, 
+          frame = F)
+
+track_peak
+tmap_save(track_peak, filename = "plots/cycling_peak_map.png", width = 10, height = 8, units = "in")
+```
 
 ## Statistical analysis of the SCR results 
 
-```{r}
+```{r REad bike network}
 bike_network <- read_rds("data/full_zh_biking_network.rds")
 
 ## Extract Edges and add to plot
 ```
 
-```{r}
+```{r Boudning box and accident plotting}
 peaks_merged_A <- peaks_merged_A[complete.cases(peaks_merged_A), ]
 
 # Expanded Track Data
@@ -865,7 +938,7 @@ window_bounds <- st_bbox(peaks_A_coor)
 window_bb <- owin(xrange = c(window_bounds["xmin"], window_bounds["xmax"]),
                yrange = c(window_bounds["ymin"], window_bounds["ymax"]))
 
-# Convert spatial ojects to point patterns
+# Convert spatial objects to point patterns
 peaks_A_ppp <- as.ppp(st_coordinates(peaks_A_coor), W = window_bb)
 accidents_ppp <- as.ppp(st_coordinates(bike_acc_coor), W = window_bb)
 
@@ -920,9 +993,21 @@ observed_values <- cross_K$r
 # Calculate Pearson correlation
 correlation_coefficient <- cor(theoretical_values, observed_values)
 print(correlation_coefficient)
-
 ```
 Pearson's correlation between observed and theoretical (CSR) values outputs a value of 0.968, which is near to 1 and hence indicates a very strong positive correlation. 
+
+Discussion of spatial correlation: 
+
+The fact that both datasets are recorded along a single bike track within a predefined buffer indeed implies a certain level of spatial correlation or association between these points. This arrangement suggests that they share a spatial context and are likely related due to their proximity within this specific area.
+
+However, employing spatial analysis techniques such as the cross-K function doesn't just confirm the presence of correlation but also quantifies and characterizes the nature and degree of that correlation. It's crucial because:
+
+1. Degree of Correlation: Even within a defined buffer or track, there might be variations in the strength or intensity of spatial association. Some regions might show stronger clustering, while others might exhibit more dispersion.
+
+2. Assessing Significance: These analyses help in determining whether the observed spatial relationship is statistically significant or merely due to chance. Statistical significance provides confidence that the spatial association is not random.
+
+3. Differentiation between Patterns: Spatial statistics can differentiate between distinct patterns within the buffer. For instance, even if both datasets are related to the same track, they might show different clustering tendencies or exhibit dissimilar spatial behaviors along that track.
+
 
 ## Comparison to HR data
 
@@ -936,82 +1021,29 @@ plt_HR_F <- qplot(data=HR_F,x = Timestamp, y=HR,geom="line",col="Fabienne") +
   xlab("Time") +
   ylab("Heart Rate")
 ggplotly(plt_HR_F,width = 900,height=450)
-```
 
-```{r, warning = F, fig.widht = 10, fig.height = 9}
-library(sfnetworks)
-edges <- bike_network %>% activate(edges) %>% st_as_sf()
-fluss <- st_read("data/fluss/VEC200_FlowingWater.shp") |> filter(NAMN == "Limmat")
 
-bbox_track <- st_bbox(track_sf_A) |> st_as_sfc() |> st_transform(crs = 2056)
+# Join HR data with full merged data
+merged_A_HR_SCR <- left_join(HR_A, full_merged_A, by = "Timestamp")
 
-zh_districts_intersect <- st_intersection(zh_districts, st_buffer(bbox_track,500))
-edges_intersect <- st_intersection(edges, st_buffer(bbox_track,500)) |>
-  filter(highway != "footway") |>
-  filter(highway != "path")
+# regression SCR and HR
+reg_HR_SCR <- lm(phasic_values ~ HR, data = merged_A_HR_SCR)
+summary(reg_HR_SCR)
 
-tmap_mode("plot")
-# Assuming you have loaded necessary libraries like 'sf' and 'tmap'
+# Plotting the regression line
+plot(merged_A_HR_SCR$HR, merged_A_HR_SCR$phasic_values,
+     xlab = "Heart Rate", ylab = "Phasic SCR Values",
+     main = "Linear Regression between Heart Rate and Phasic SCR")
 
-# Convert first_point and last_point to sf objects
-first_point <- st_as_sf(track_sf_A[1, ]) %>%
-  mutate(text = "Start")
-last_point <- st_as_sf(track_sf_A[nrow(track_sf_A), ]) %>%
-  mutate(text = "End")
-
-# Create a tmap plot with points, lines, and text labels
-track_map <- tm_shape(zh_districts_intersect) +
-  tm_polygons() +
-tm_shape(fluss) +
-  tm_lines(col = "lightblue1", lwd = 10) +
-tm_shape(edges_intersect) +
-  tm_lines() +
-tm_shape(track_sf_A) +
-  tm_dots(col = "red", size = 0.02) +
-tm_shape(first_point) +
-  tm_dots(col = "red1", size = 0.5) +
-  tm_text("text", size = 2,ymod = 0.6,xmod = 2, col = "red") +  # Specify the column containing text
-tm_shape(last_point) +
-  tm_dots(col = "red1", size = 0.5) +
-  tm_text("text", size = 2, ymod = -0.8, col = "red") +  # Specify the column containing text
-tm_layout(title = "Cycling Track", title.position = c("center", "top"), 
-          inner.margins = c(0.08, 0.08, 0.08, 0.08),
-          title.size = 2, 
-          frame = F)
-
-track_map
-tmap_save(track_map, filename = "plots/cycling_track_map.png", width = 10, height = 8, units = "in")
+# Adding the regression line to the plot
+abline(reg_HR_SCR, col = "red")
 
 ```
+The F-statistic tests if at least one coefficient is significantly different from zero. A high p-value (0.9011) indicates that the model as a whole is not statistically significant. Neither the intercept nor the coefficient for 'HR' appears to have a significant impact on predicting 'phasic_values'. The low R-squared values and non-significant coefficients suggest that 'HR' doesn't have a substantial linear relationship with 'phasic_values' in this model.
 
+--> Good!! we assumed that the HR would not significantly affect the phasic SCR variability
 
-```{r}
-tmap_mode("view")
-
-track_peak <- tm_shape(zh_districts_intersect) +
-  tm_polygons() +
-tm_shape(fluss) +
-  tm_lines(col = "lightblue1", lwd = 10) +
-tm_shape(edges_intersect) +
-  tm_lines() +
-tm_shape(track_sf_F) +
-  tm_dots(col = "red", size = 0.01) +
-tm_shape(first_point) +
-  tm_dots(col = "red1", size = 0.1) +
-tm_shape(last_point) +
-  tm_dots(col = "red1", size = 0.1) +
-tm_shape(peaks_merged_sf_F) +
-  tm_dots(col = "blue", size = 0.1) +
-tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
-          inner.margins = c(0.1, 0.1, 0.1, 0.1),
-          title.size = 1, 
-          frame = F)
-
-track_peak
-tmap_save(track_peak, filename = "plots/cycling_peak_map.png", width = 10, height = 8, units = "in")
-```
-
-```{r Spatial proximity}
+```{r Spatial proximity based on nearest neighbours}
 # Since the points (acc and SCR peaks) don't share exact coordinates -> explore relationship based on spatial proximity using nearest neighbou approach:
 
 full_merged_sf_A <- st_transform(full_merged_sf_A, st_crs(acc_buffer))
@@ -1019,36 +1051,51 @@ full_merged_sf_A <- st_transform(full_merged_sf_A, st_crs(acc_buffer))
 # Calculate nearest neighbor distances and indices
 nearest_neighbors_A <- st_nearest_feature(acc_buffer, full_merged_sf_A)
 
-# Merge SCR values to accident locations based on nearest neighbors
-nn_A <- cbind(acc_buffer, nearest_neighbors_A)
-
 # Extract corresponding SCR values based on nearest neighbor indices
 nn_A$SCR_phasic <- full_merged_sf_A$phasic_values[nn_A$nearest_neighbors_A]
 ```
 
-To predict the accident severity from phasic SCR values, we perform a linear regression model. Since we have categorical severity classes rather than continuous numerical values, we use dummy coding which leads to a table called contrast matrix. Generally, a categorical variable with n levels will be transformed into n-1 variables each with two levels. These n-1 new variables contain the same information than the single variable. This recoding creates a table called contrast matrix. By default option in R is to use the first level of the factor as a reference and interpret the remaining levels relative to this level.
+To predict the accident severity from phasic SCR values, we perform a linear regression model. Since we have categorical severity classes rather than continuous numerical values, we use dummy coding which leads to a table called contrast matrix. Generally, a categorical variable with n levels will be transformed into n-1 variables each with two levels. These n-1 new variables contain the same information than the single variable. This recoding creates a table called contrast matrix. > as.factor to factorize the categorical values.
 
-Using multinomial logistic regression (one predictor and response variable with multiple categories)
+Using one-way ANOVA (one predictor and response variable with multiple categories)
 
-```{r Categorical regression analysis}
-# Convert AccidentSeverityCategory_en into factor
-res <- model.matrix(~AccidentSeverityCategory_en, data = nn_A)
-head(res[, -1])
+https://stats.oarc.ucla.edu/r/dae/ordinal-logistic-regression/ > they propose to use ANOVA: If you use only one continuous predictor, you could “flip” the model around so that, say, phasic SCR was the outcome variable and accident severity category was the predictor variable. This isn’t a bad thing to do if you only have one predictor variable (from the logistic model), and it is continuous.
 
-library(nnet)
+```{r SCR distribution}
 
-# Fit multinomial logistic regression model
-model <- multinom(AccidentSeverityCategory_en ~ SCR_phasic, data = nn_A)
+# Examine the distribution of SCR_phasic values for each accident severity category 
 
-# Summary of the model
-summary(model)
+ggplot(nn_A, aes(x = AccidentSeverityCategory_en, y = SCR_phasic)) +
+  geom_boxplot(width = 0.5, fill = "skyblue", color = "darkblue", alpha = 0.8) +
+  geom_jitter(width = 0.2, alpha = 0.2, color = "red") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        axis.line = element_line(colour = "black"),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "bold"),
+        legend.title = element_blank(),
+        legend.position = "bottom") +
+  labs(x = "Accident Severity Category", y = "SCR Phasic Values",
+       title = "Distribution of SCR Phasic Values by Accident Severity") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
 
 ```
-Using SCR phasic values as predictor variables to explain the categorical response variable bike accident severity (with 4 different levels) --> we try to understand if changes in the SCR phasic component are associated with changes in the categorical levels of accident severity.
 
 
---> Try K-Nearest Neighbors (KNN): This method predicts the classification of a point based on the classes of its nearest neighbors in the feature space.
+```{r ANOVA}
+# One-way ANOVA
+anova_result <- aov(SCR_phasic ~ as.factor(AccidentSeverityCategory_en), data = nn_A)
 
+# Summary of ANOVA
+summary(anova_result)
+
+```
+
+Summary interpretation: 
+
+F value: With an F value of 0.672 and a corresponding p-value of 0.57, it indicates that the differences in mean SCR_phasic values between the categories of AccidentSeverityCategory_en are not statistically significant.
+
+Conclusion: There's insufficient evidence to reject the null hypothesis. It suggests that, based on SCR_phasic values, the different categories of accident severity do not have significantly different mean values.
 
 
 ## To Do: 
