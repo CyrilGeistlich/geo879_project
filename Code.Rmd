@@ -795,6 +795,11 @@ mapview(full_merged_sf_F_sub,
         lwd = 0.01, 
         layer.name = "Phasic SCR")
 ```
+```{r REad bike network}
+bike_network <- read_rds("data/full_zh_biking_network.rds")
+
+## Extract Edges and add to plot
+```
 
 ```{r, warning = F, fig.widht = 10, fig.height = 9}
 library(sfnetworks)
@@ -842,39 +847,7 @@ tmap_save(track_map, filename = "plots/cycling_track_map.png", width = 10, heigh
 
 ```
 
-```{r Plot: Peaks along track}
-tmap_mode("view")
-
-track_peak <- tm_shape(zh_districts_intersect) +
-  tm_polygons() +
-tm_shape(fluss) +
-  tm_lines(col = "lightblue1", lwd = 10) +
-tm_shape(edges_intersect) +
-  tm_lines() +
-tm_shape(track_sf_F) +
-  tm_dots(col = "red", size = 0.01) +
-tm_shape(first_point) +
-  tm_dots(col = "red1", size = 0.1) +
-tm_shape(last_point) +
-  tm_dots(col = "red1", size = 0.1) +
-tm_shape(peaks_merged_sf_F) +
-  tm_dots(col = "blue", size = 0.1) +
-tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
-          inner.margins = c(0.1, 0.1, 0.1, 0.1),
-          title.size = 1, 
-          frame = F)
-
-track_peak
-tmap_save(track_peak, filename = "plots/cycling_peak_map.png", width = 10, height = 8, units = "in")
-```
-
 ## Statistical analysis of the SCR results 
-
-```{r REad bike network}
-bike_network <- read_rds("data/full_zh_biking_network.rds")
-
-## Extract Edges and add to plot
-```
 
 ```{r Boudning box and accident plotting}
 peaks_merged_A <- peaks_merged_A[complete.cases(peaks_merged_A), ]
@@ -903,6 +876,31 @@ tm_shape(b) +
 tm_shape(peaks_merged_sf_F) +
   tm_dots(size = 0.1)
 
+```
+```{r Plot: Peaks along track}
+tmap_mode("view")
+
+track_peak <- tm_shape(zh_districts_intersect) +
+  tm_polygons() +
+tm_shape(fluss) +
+  tm_lines(col = "lightblue1", lwd = 10) +
+tm_shape(edges_intersect) +
+  tm_lines() +
+tm_shape(track_sf_F) +
+  tm_dots(col = "red", size = 0.01) +
+tm_shape(first_point) +
+  tm_dots(col = "red1", size = 0.1) +
+tm_shape(last_point) +
+  tm_dots(col = "red1", size = 0.1) +
+tm_shape(peaks_merged_sf_F) +
+  tm_dots(col = "blue", size = 0.1) +
+tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
+          inner.margins = c(0.1, 0.1, 0.1, 0.1),
+          title.size = 1, 
+          frame = F)
+
+track_peak
+tmap_save(track_peak, filename = "plots/cycling_peak_map.png", width = 10, height = 8, units = "in")
 ```
 
 ```{r Buffer track and intersection}
@@ -1051,6 +1049,9 @@ full_merged_sf_A <- st_transform(full_merged_sf_A, st_crs(acc_buffer))
 # Calculate nearest neighbor distances and indices
 nearest_neighbors_A <- st_nearest_feature(acc_buffer, full_merged_sf_A)
 
+# Merge SCR values to accident locations based on nearest neighbors
+nn_A <- cbind(acc_buffer, nearest_neighbors_A)
+
 # Extract corresponding SCR values based on nearest neighbor indices
 nn_A$SCR_phasic <- full_merged_sf_A$phasic_values[nn_A$nearest_neighbors_A]
 ```
@@ -1078,6 +1079,24 @@ ggplot(nn_A, aes(x = AccidentSeverityCategory_en, y = SCR_phasic)) +
   labs(x = "Accident Severity Category", y = "SCR Phasic Values",
        title = "Distribution of SCR Phasic Values by Accident Severity") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+```
+```{r}
+# Extracting X and Y coordinates from nn_A geom
+coords <- st_coordinates(nn_A)
+
+# Creating separate columns for X and Y
+nn_A$X <- coords[, "X"]
+nn_A$Y <- coords[, "Y"]
+
+# Create spatial weights matrix (based on K-nearest neighbors)
+w <- knn2nb(knearneigh(coords))
+
+# Fit SAR model with spatially autocorrelated errors
+sar_model <- errorsarlm(AccidentSeverityCategory_en ~ SCR_phasic, data = nn_A, listw = w)
+
+# Summary of SAR model
+summary(sar_model)
 
 ```
 
