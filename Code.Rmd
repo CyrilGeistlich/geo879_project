@@ -1088,16 +1088,6 @@ coords <- st_coordinates(nn_A)
 # Creating separate columns for X and Y
 nn_A$X <- coords[, "X"]
 nn_A$Y <- coords[, "Y"]
-
-# Create spatial weights matrix (based on K-nearest neighbors)
-w <- knn2nb(knearneigh(coords))
-
-# Fit SAR model with spatially autocorrelated errors
-sar_model <- errorsarlm(AccidentSeverityCategory_en ~ SCR_phasic, data = nn_A, listw = w)
-
-# Summary of SAR model
-summary(sar_model)
-
 ```
 
 
