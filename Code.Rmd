@@ -887,13 +887,17 @@ tm_shape(fluss) +
 tm_shape(edges_intersect) +
   tm_lines() +
 tm_shape(track_sf_F) +
-  tm_dots(col = "red", size = 0.01) +
+  tm_dots(col = "blue", size = 0.01) +
+tm_shape(track_sf_A) +
+  tm_dots(col = "blue", size = 0.01) +
 tm_shape(first_point) +
-  tm_dots(col = "red1", size = 0.1) +
+  tm_dots(col = "blue1", size = 0.1) +
 tm_shape(last_point) +
-  tm_dots(col = "red1", size = 0.1) +
+  tm_dots(col = "blue1", size = 0.1) +
+tm_shape(peaks_merged_sf_A) +
+  tm_dots(col = "orange", size = 0.1, alpha = 0.5) +
 tm_shape(peaks_merged_sf_F) +
-  tm_dots(col = "blue", size = 0.1) +
+  tm_dots(col = "red", size = 0.1, alpha = 0.5) +
 tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
           inner.margins = c(0.1, 0.1, 0.1, 0.1),
           title.size = 1, 
@@ -919,7 +923,7 @@ track_sf_A_buffer <- st_transform(track_sf_A_buffer, st_crs(b))
 # intersection of bike accidents b with buffer of track
 acc_buffer <- st_intersection(b, track_sf_A_buffer)
 
-mapview(acc_buffer, zcol = "AccidentSeverityCategory_en")
+mapview(acc_buffer, zcol = "AccidentSeverityCategory_en", layer.name = "Accident Severity")
 ```
 
 
@@ -1105,9 +1109,3 @@ F value: With an F value of 0.672 and a corresponding p-value of 0.57, it indica
 
 Conclusion: There's insufficient evidence to reject the null hypothesis. It suggests that, based on SCR_phasic values, the different categories of accident severity do not have significantly different mean values.
 
-
-## To Do: 
-
-- plot of heart rate
-- volume of intersection of dbscan plot: intersection
-- regression analysis between SCR phasic peaks and accident severity
