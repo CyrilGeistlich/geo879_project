@@ -1097,7 +1097,6 @@ anova_result <- aov(SCR_phasic ~ as.factor(AccidentSeverityCategory_en), data = 
 
 # Summary of ANOVA
 summary(anova_result)
-
 ```
 
 Summary interpretation: 
