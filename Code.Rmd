@@ -895,9 +895,9 @@ tm_shape(first_point) +
 tm_shape(last_point) +
   tm_dots(col = "blue1", size = 0.1) +
 tm_shape(peaks_merged_sf_A) +
-  tm_dots(col = "orange", size = 0.1, alpha = 0.5) +
+  tm_dots(col = "yellow", size = 0.25) +
 tm_shape(peaks_merged_sf_F) +
-  tm_dots(col = "red", size = 0.1, alpha = 0.5) +
+  tm_dots(col = "red", size = 0.25) +
 tm_layout(title = "Cycling Track and GSR Peaks", title.position = c("center", "top"), 
           inner.margins = c(0.1, 0.1, 0.1, 0.1),
           title.size = 1, 
@@ -924,6 +924,39 @@ track_sf_A_buffer <- st_transform(track_sf_A_buffer, st_crs(b))
 acc_buffer <- st_intersection(b, track_sf_A_buffer)
 
 mapview(acc_buffer, zcol = "AccidentSeverityCategory_en", layer.name = "Accident Severity")
+```
+
+```{r}
+tmap_mode("plot")
+
+severity_colors <- c("Accident with fatalities" = "red", "Accident with light injuries" = "yellow", "Accident with property damage" = "blue", "Accident with severe injuries" = "orange")
+
+acc_fatalities <- acc_buffer[acc_buffer$AccidentSeverityCategory_en == "Accident with fatalities", ]
+
+# Create separate layers for different severity categories
+fatalities_layer <- tm_shape(acc_fatalities) +
+  tm_dots(col = "red", size = 0.25)
+
+
+track_acc <- tm_shape(zh_districts_intersect) +
+  tm_polygons() +
+tm_shape(fluss) +
+  tm_lines(col = "lightblue1", lwd = 10) +
+tm_shape(edges_intersect) +
+  tm_lines() +
+tm_shape(acc_buffer) +
+  tm_dots(col = "AccidentSeverityCategory_en", size = 0.25, palette = severity_colors, title = "Accident Severity") +
+fatalities_layer +
+tm_layout(title = "Cycling Track and Accident Severity", title.position = c("center", "top"), 
+          inner.margins = c(0.1, 0.1, 0.1, 0.1),
+          title.size = 1, 
+          frame = F) +
+tm_legend(position = c("center", "bottom"), 
+                        bg.color = TRUE) 
+
+track_acc
+tmap_save(track_acc, filename = "plots/acc_map.png", width = 10, height = 8, units = "in")
+
 ```
 
 
@@ -964,10 +997,12 @@ is.multitype(combined_ppp)
 cross_K <- Kcross(combined_ppp)
 summary(cross_K)
 
+plot(Kcross(combined_ppp))
+
 # Try Ripley's K function (edge effect correction)
 kf <- Kest(combined_ppp, correction = "Ripley")
 
-png(file = "plots/Kcross.png", width = 800, height = 600)
+png(file = "plots/Kcross.png", width = 900, height = 600)
 
 plot(kf)
 
@@ -1000,7 +1035,7 @@ Pearson's correlation between observed and theoretical (CSR) values outputs a va
 
 Discussion of spatial correlation: 
 
-The fact that both datasets are recorded along a single bike track within a predefined buffer indeed implies a certain level of spatial correlation or association between these points. This arrangement suggests that they share a spatial context and are likely related due to their proximity within this specific area.
+The fact that both datasets are recorded along a single bike track within a predefined buffer indeed implies a certain level of spatial correlation / spatial clustering or association between these points. This arrangement suggests that they share a spatial context and are likely related due to their proximity within this specific area.
 
 However, employing spatial analysis techniques such as the cross-K function doesn't just confirm the presence of correlation but also quantifies and characterizes the nature and degree of that correlation. It's crucial because:
 
@@ -1070,7 +1105,7 @@ https://stats.oarc.ucla.edu/r/dae/ordinal-logistic-regression/ > they propose to
 
 # Examine the distribution of SCR_phasic values for each accident severity category 
 
-ggplot(nn_A, aes(x = AccidentSeverityCategory_en, y = SCR_phasic)) +
+anova_plt <- ggplot(nn_A, aes(x = AccidentSeverityCategory_en, y = SCR_phasic)) +
   geom_boxplot(width = 0.5, fill = "skyblue", color = "darkblue", alpha = 0.8) +
   geom_jitter(width = 0.2, alpha = 0.2, color = "red") +
   theme_minimal() +
@@ -1083,6 +1118,12 @@ ggplot(nn_A, aes(x = AccidentSeverityCategory_en, y = SCR_phasic)) +
   labs(x = "Accident Severity Category", y = "SCR Phasic Values",
        title = "Distribution of SCR Phasic Values by Accident Severity") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+png(file = "plots/anova.png", width = 800, height = 600)
+
+plot(anova_plt)
+
+dev.off
 
 ```
 ```{r}
