@@ -640,7 +640,7 @@ EDA_F_smoothed$phasic_values <- (EDA_F_smoothed$GSR_smoothed - EDA_F_smoothed$to
 plt_A_phasic <- qplot(data=EDA_A_smoothed,x = Timestamp, y=phasic_values,geom="line") +
   xlab("Time") +
   ylab("Phasic Values [µS]") +
-  ggtitle("Extracted Phasic Values from GSR Measurement - Annika") +
+  ggtitle("Extracted Phasic Values from GSR Measurement - Participant 1") +
   geom_hline(yintercept = 0.01, linetype = "dotted", color = "red", size = 0.5)
 
 ggplotly(plt_A_phasic,width = 900,height=450)
@@ -648,7 +648,7 @@ ggplotly(plt_A_phasic,width = 900,height=450)
 plt_F_phasic <- qplot(data=EDA_F_smoothed,x = Timestamp, y=phasic_values,geom="line") +
   xlab("Time") +
   ylab("Phasic Values [µS]") +
-  ggtitle("Extracted Phasic Values from GSR Measurement - Fabienne")+
+  ggtitle("Extracted Phasic Values from GSR Measurement - Participant 2")+
   geom_hline(yintercept = 0.01, linetype = "dotted", color = "red", size = 0.5) 
   
 ggplotly(plt_F_phasic,width = 900,height=450)
@@ -878,7 +878,7 @@ tm_shape(peaks_merged_sf_F) +
 
 ```
 ```{r Plot: Peaks along track}
-tmap_mode("view")
+tmap_mode("plot")
 
 track_peak <- tm_shape(zh_districts_intersect) +
   tm_polygons() +
